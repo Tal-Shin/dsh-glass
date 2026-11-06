@@ -1,6 +1,6 @@
 {
   "name": "@tal-shin/dsh-glass-theme",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "description": "Colour, glass, corners and type, and motion for the DSH shell, each switchable on its own.",
   "exports": {

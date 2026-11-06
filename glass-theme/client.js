@@ -817,8 +817,11 @@ html body [data-slot='sidebar.settings'] button[class*='_indicator'] {
          thick          surfaces that float over everything, real blur, a floor on opacity
                         so text stays readable whatever is behind them;
          thin           cards inside those, a translucent fill and no blur of their own;
-         clear          the composer. Liquid glass reads through refraction and a directional
-                        rim, and heavy blur hides both, so this one barely blurs at all. */
+         clear          the composer. A light fill with a directional rim and refraction, and
+                        a blur kept high enough to dissolve the text passing behind it: less
+                        only smudges black text into smears under what you type. Its blur is
+                        the card's own, so the blurred area is always exactly the card; a
+                        separate layer behind it smeared the sheet's edge and cut text. */
     const GLASS_CSS = String.raw`
 body {
   --lg-sheet: rgb(250 250 252 / var(--lg-alpha, .56));
@@ -833,8 +836,7 @@ body {
   --lg-glint: rgb(255 255 255 / calc(.22 * var(--lg-k, 1)));
   --lg-glint-idle: rgb(255 255 255 / calc(.12 * var(--lg-k, 1)));
   --lg-refraction: blur(var(--lg-blur, 18px)) saturate(calc(1 + .4 * var(--lg-k, 1)));
-  --lg-clear: blur(min(var(--lg-blur, 18px), 2px)) saturate(calc(1 + .4 * var(--lg-k, 1))) brightness(1.05);
-  --lg-seat: blur(min(var(--lg-blur, 18px), 6px));
+  --lg-clear: blur(clamp(14px, var(--lg-blur, 18px), 22px)) saturate(calc(1 + .4 * var(--lg-k, 1))) brightness(1.05);
   --lg-rim-dim: rgb(255 255 255 / calc(.34 * var(--lg-k, 1)));
   --lg-rim-glow: rgb(255 255 255 / calc(.16 * var(--lg-k, 1)));
   --lg-rim-shade: rgb(0 0 0 / calc(.07 * var(--lg-k, 1)));
@@ -880,8 +882,7 @@ body[data-ds-dark-theme] {
   --lg-rim-glow: rgb(255 255 255 / calc(.04 * var(--lg-k, 1)));
   --lg-rim-shade: rgb(0 0 0 / calc(.20 * var(--lg-k, 1)));
   --lg-refraction: blur(var(--lg-blur, 18px)) saturate(calc(1 + .25 * var(--lg-k, 1)));
-  --lg-clear: blur(min(var(--lg-blur, 18px), 2px)) saturate(calc(1 + .25 * var(--lg-k, 1))) brightness(1.1);
-  --lg-seat: blur(min(var(--lg-blur, 18px), 6px));
+  --lg-clear: blur(clamp(14px, var(--lg-blur, 18px), 22px)) saturate(calc(1 + .25 * var(--lg-k, 1))) brightness(1.1);
   --dsw-alias-bg-module-platform: rgb(120 120 128 / .16) !important;
   --dsw-alias-markdown-tag: rgb(120 120 128 / .24) !important;
   --dsw-alias-interactive-bg-hover-solid: rgb(120 120 128 / .24) !important;
@@ -909,24 +910,6 @@ html body [class*='_7rgC5q_item']::after {
 html body :is(.MKE-pW_overlay, .kBGKfW_onboardingOverlay) {
   background: var(--glass-base-solid);
 }
-/* Text behind the composer softens with it, and stays soft below the card instead of turning
-   sharp again. The seat is the sticky band the shell keeps the composer in.
-   - It starts at the card's top edge, which hides its hard edge. A mask does not fade a
-     backdrop filter here: it cuts text in two and leaves a band, as it did under the header.
-   - It stays inside the seat: anything wider adds a horizontal scrollbar, which lifts the
-     composer by that scrollbar's height.
-   - It applies in a running conversation only: on the start page the seat fills the column. */
-html body [class*='an3WzG_root'][data-phase='active'] [data-composer-seat]::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  border-radius: 0 0 var(--dsw-radius-panel, 22px) var(--dsw-radius-panel, 22px);
-  -webkit-backdrop-filter: var(--lg-seat);
-  backdrop-filter: var(--lg-seat);
-}
-
 /* Declared here, not on body: the highlight follows --lg-x set on this element. */
 html body [data-composer-card] {
   --lg-composer-fill:
@@ -993,7 +976,6 @@ html body [class*='_toBottom'] {
     --lg-thin: var(--dsw-alias-bg-layer-1);
     --lg-refraction: none;
     --lg-clear: none;
-    --lg-seat: none;
     --lg-glint: transparent;
     --lg-glint-idle: transparent;
     --dsw-menu-backdrop-filter: none !important;
@@ -1007,7 +989,7 @@ html body [class*='_toBottom'] {
   html body [data-composer-card] { --lg-composer-fill: var(--lg-composer); }
 }
 @media print {
-  body, body[data-ds-dark-theme] { --lg-refraction: none; --lg-clear: none; --lg-seat: none; }
+  body, body[data-ds-dark-theme] { --lg-refraction: none; --lg-clear: none; }
 }
 `;
 
@@ -1032,6 +1014,9 @@ html body {
 }
 html body [data-composer-card] {
   border-radius: var(--glass-composer-radius);
+}
+html body [data-composer-card]::before {
+  border-radius: calc(var(--glass-composer-radius) - 1px);
 }
 html body [data-composer-card] :is(button[class*='_primary'], [class*='GRgSLq_add']) {
   border-radius: max(calc(var(--glass-composer-radius) - 9px), 8px);
@@ -1238,7 +1223,7 @@ html[data-lg-motion="off"] body :is([data-menu-material], [role='dialog'], [clas
         interaction: '交互动效', interactionNote: '按压反馈、弹入动效、开关和键盘焦点。',
         strength: '玻璃强度', transparency: '透明度', blur: '模糊度', radius: '圆角', motion: '动效强度', backdrop: '背景样式', refraction: '高级渲染',
         off: '关', subtle: '轻', standard: '标准', lively: '活泼', wash: '柔和渐变', vivid: '鲜明渐变', plain: '纯色', lens: '折射透镜',
-        refractionHint: '输入框边缘按曲面玻璃弯折背后的画面，带轻微色散。输入框只有不到 2px 的模糊，不受上面的模糊度影响。',
+        refractionHint: '输入框边缘按曲面玻璃弯折背后的画面，带轻微色散。输入框的模糊保持在 14～22px，让背后的文字完全化开。',
         refractionUnsupported: '当前环境不支持折射，已自动关闭。',
         save: '保存', saving: '正在保存…', saveFailed: '保存失败，请重试。', unavailable: '设置暂时不可用。', readOnly: '此配置为只读。',
         discard: '放弃', reset: '重置', overridden: '已覆盖',
@@ -1251,7 +1236,7 @@ html[data-lg-motion="off"] body :is([data-menu-material], [role='dialog'], [clas
         interaction: 'Motion', interactionNote: 'Press feedback, surfaces settling in, switches and keyboard focus.',
         strength: 'Strength', transparency: 'Transparency', blur: 'Blur', radius: 'Corners', motion: 'Intensity', backdrop: 'Background', refraction: 'Rendering',
         off: 'Off', subtle: 'Subtle', standard: 'Standard', lively: 'Lively', wash: 'Soft wash', vivid: 'Vivid wash', plain: 'Plain', lens: 'Refraction',
-        refractionHint: 'Bends the scene at the composer rim like curved glass, with a faint colour fringe. The composer blurs by 2px at most, whatever the blur above.',
+        refractionHint: 'Bends the scene at the composer rim like curved glass, with a faint colour fringe. The composer blur stays between 14 and 22px, so text behind it dissolves.',
         refractionUnsupported: 'Refraction is not supported here, so it stays off.',
         save: 'Save', saving: 'Saving…', saveFailed: 'Could not save. Try again.', unavailable: 'Settings are unavailable right now.', readOnly: 'This profile is read-only.',
         discard: 'Discard', reset: 'Reset', overridden: 'Overridden',

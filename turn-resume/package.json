@@ -1,6 +1,6 @@
 {
   "name": "@tal-shin/dsh-turn-resume",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "description": "After an interrupted turn, a chip under the composer drafts the continuation.",
   "exports": {
