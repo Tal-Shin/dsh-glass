@@ -1,6 +1,6 @@
 {
   "name": "@tal-shin/dsh-workbench",
-  "version": "0.3.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "A live overview of the session on the right panel's start page.",
   "exports": {

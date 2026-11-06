@@ -1,6 +1,6 @@
 {
   "name": "@tal-shin/dsh-glass-theme",
-  "version": "0.3.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "Colour, glass, corners and type, and motion for the DSH shell, each switchable on its own.",
   "exports": {
@@ -19,6 +19,9 @@
     "LICENSE",
     "THIRD_PARTY_NOTICES.md"
   ],
+  "dependencies": {
+    "@deepseek-ai/schemastery": "^3.18.5"
+  },
   "dsh": {
     "engines": {
       "dsh": ">=0.2.1-rc.5"
