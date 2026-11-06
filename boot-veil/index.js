@@ -27,7 +27,7 @@ const MARK = `<img class="dsh-boot-mark dsh-boot-light" src="./favicon.svg" alt=
 const STYLE = `
   #dsh-boot {
     --boot-bg: #f5f5f7; --boot-ink: #1d1d1f; --boot-track: rgba(0, 0, 0, .10); --boot-hint: #6e6e73;
-    --boot-wash-1: rgba(0, 122, 255, .10); --boot-wash-2: rgba(175, 82, 222, .08); --boot-wash-3: rgba(90, 200, 250, .12);
+    --boot-wash-1: rgba(0, 122, 255, .05); --boot-wash-2: rgba(175, 82, 222, .04); --boot-wash-3: rgba(90, 200, 250, .06);
     position: fixed; inset: 0; z-index: 2147483000;
     display: grid; place-items: center;
     background-color: var(--boot-bg);
@@ -45,12 +45,12 @@ const STYLE = `
   }
   #dsh-boot[data-theme="dark"] {
     --boot-bg: #1c1c1e; --boot-ink: #f5f5f7; --boot-track: rgba(255, 255, 255, .14); --boot-hint: #98989d;
-    --boot-wash-1: rgba(10, 132, 255, .16); --boot-wash-2: rgba(191, 90, 242, .12); --boot-wash-3: rgba(100, 210, 255, .10);
+    --boot-wash-1: rgba(10, 132, 255, .09); --boot-wash-2: rgba(191, 90, 242, .07); --boot-wash-3: rgba(100, 210, 255, .06);
   }
   @media (prefers-color-scheme: dark) {
     #dsh-boot[data-theme="system"] {
       --boot-bg: #1c1c1e; --boot-ink: #f5f5f7; --boot-track: rgba(255, 255, 255, .14); --boot-hint: #98989d;
-      --boot-wash-1: rgba(10, 132, 255, .16); --boot-wash-2: rgba(191, 90, 242, .12); --boot-wash-3: rgba(100, 210, 255, .10);
+      --boot-wash-1: rgba(10, 132, 255, .09); --boot-wash-2: rgba(191, 90, 242, .07); --boot-wash-3: rgba(100, 210, 255, .06);
     }
   }
   #dsh-boot .dsh-boot-stack {

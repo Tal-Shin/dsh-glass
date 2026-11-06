@@ -26,7 +26,9 @@ window.__ModuleLoader__.load({
         contextOf: '{used} / {window}', ctxMessages: '消息', ctxTools: '工具定义', ctxSystem: '系统提示',
         ctxOther: '其他', ctxFree: '剩余空间',
         changes: '改动', changed: '{count} 个文件', changesOf: '第 {turn} 轮', noChanges: '还没有文件改动',
-        changesExpired: '差异只在本次运行内保留，这里列出改过的文件', reviewAll: '查看全部改动', binary: '二进制', oversized: '文件过大',
+        changesExpired: '差异只在本次运行内保留，这里列出改过的文件', changesLoading: '正在读取改动…',
+        changesGone: '这一轮的差异已过期', changesFailed: '改动读取失败', retry: '重试',
+        more: '还有 {count} 项', showAll: '展开全部', showLess: '收起', subagentFailed: '失败', reviewAll: '查看全部改动', binary: '二进制', oversized: '文件过大',
         plan: '计划', openPlan: '查看计划', tasks: '任务', tasksDone: '{done} / {total} 完成',
         subagents: '子智能体', subagentRunning: '运行中', subagentDone: '已结束', tools: '工具',
         title: '工作台', browsePlugins: '浏览更多插件', createPlugin: '创建你的插件', createPrompt: '创建一个带右侧栏入口的 DSH 插件。',
@@ -38,7 +40,9 @@ window.__ModuleLoader__.load({
         contextOf: '{used} / {window}', ctxMessages: 'Messages', ctxTools: 'Tool definitions', ctxSystem: 'System prompt',
         ctxOther: 'Other', ctxFree: 'Free space',
         changes: 'Changes', changed: '{count} files', changesOf: 'Turn {turn}', noChanges: 'No file changes yet',
-        changesExpired: 'Diffs last for this run only, so these are the files touched', reviewAll: 'Review all changes', binary: 'Binary', oversized: 'Too large',
+        changesExpired: 'Diffs last for this run only, so these are the files touched', changesLoading: 'Loading changes…',
+        changesGone: 'The diff for this turn has expired', changesFailed: 'Could not load changes', retry: 'Retry',
+        more: '{count} more', showAll: 'Show all', showLess: 'Show less', subagentFailed: 'Failed', reviewAll: 'Review all changes', binary: 'Binary', oversized: 'Too large',
         plan: 'Plan', openPlan: 'Open plan', tasks: 'Tasks', tasksDone: '{done} of {total} done',
         subagents: 'Subagents', subagentRunning: 'Running', subagentDone: 'Finished', tools: 'Tools',
         title: 'Workbench', browsePlugins: 'Browse other plugins', createPlugin: 'Create your plugin', createPrompt: 'Create a DSH plugin with a right sidebar entry.',
@@ -128,25 +132,56 @@ window.__ModuleLoader__.load({
 
     const selectPlan = (chat) => findLast(chat, 'tool-call', (node) => toolOf(node, 'exit_plan_mode')?.callId) ?? '';
 
+    /**
+     * The newest change summary as { status, data, retry }. status is 'loading', 'ready',
+     * 'expired' (the Host no longer holds it: summaries end with the run) or 'failed'.
+     */
     function useSummary(sessionId, marker) {
-      const [state, setState] = React.useState({ marker: '', data: null, failed: false });
+      const [attempt, setAttempt] = React.useState(0);
+      const [state, setState] = React.useState({ key: '', status: 'loading', data: null });
+      const key = `${sessionId}|${marker}|${attempt}`;
       React.useEffect(() => {
         if (!marker) return undefined;
         const seq = marker.split(':')[0];
         const controller = new AbortController();
         const query = new URLSearchParams({ sessionId, seq });
         fetch(`api/changes.summary?${query}`, { signal: controller.signal })
-          .then((response) => {
+          .then(async (response) => {
+            if (response.status === 404 || response.status === 410) return setState({ key, status: 'expired', data: null });
             if (!response.ok) throw new Error(String(response.status));
-            return response.json();
+            const data = await response.json();
+            // An empty answer for an announced change set means the run that held it is gone.
+            setState({ key, status: data && Array.isArray(data.files) ? 'ready' : 'expired', data });
           })
-          .then((data) => setState({ marker, data, failed: false }))
           .catch((error) => {
-            if (error?.name !== 'AbortError') setState({ marker, data: null, failed: true });
+            if (error?.name !== 'AbortError') setState({ key, status: 'failed', data: null });
           });
         return () => controller.abort();
-      }, [sessionId, marker]);
-      return state.marker === marker ? state : { marker, data: null, failed: false };
+      }, [key]);
+      const retry = React.useCallback(() => setAttempt((n) => n + 1), []);
+      return state.key === key ? { ...state, retry } : { status: 'loading', data: null, retry };
+    }
+
+    /**
+     * Rows past `limit` fold behind "N more". While folded, rows that need attention
+     * (running, failed) are kept ahead of quiet ones, and the kept rows stay in order.
+     */
+    function Folded({ items, limit, urgent, render, t }) {
+      const [open, setOpen] = React.useState(false);
+      if (items.length <= limit + 1) return items.map(render);
+      let shown = items;
+      if (!open) {
+        const keep = new Set();
+        items.forEach((item, index) => { if (keep.size < limit && urgent?.(item)) keep.add(index); });
+        items.forEach((item, index) => { if (keep.size < limit) keep.add(index); });
+        shown = items.filter((_, index) => keep.has(index));
+      }
+      return [
+        ...shown.map(render),
+        h('button', { key: '__more', type: 'button', className: 'wb-row wb-more', 'aria-expanded': String(open), onClick: () => setOpen(!open) },
+          h('span', { className: 'wb-label wb-action' }, open ? t('showLess') : fill(t('more'), { count: items.length - shown.length })),
+          open ? null : h('span', { className: 'wb-meta' }, t('showAll'))),
+      ];
     }
 
     const CSS = `
@@ -210,6 +245,11 @@ button.wb-row:active { background: var(--dsw-alias-interactive-bg-active); }
 .wb-deleted { color: var(--dsw-alias-state-error-primary); }
 .wb-action { color: var(--dsw-alias-link); }
 .wb-muted { color: var(--dsw-alias-label-caption); font-size: 12px; line-height: 18px; }
+.wb-notice { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.wb-notice[data-tone='error'] > span { color: var(--dsw-alias-state-error-primary); }
+.wb-link { flex: none; padding: 0 6px; border: 0; border-radius: 6px; background: transparent; color: var(--dsw-alias-link); font: inherit; font-size: 12px; cursor: pointer; }
+.wb-link:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.wb-mark[data-status='failed'], .wb-mark[data-status='error'] { border-color: var(--dsw-alias-state-error-primary); }
 .wb-mark {
   flex: none;
   box-sizing: border-box;
@@ -338,20 +378,26 @@ button.wb-row:active { background: var(--dsw-alias-interactive-bg-active); }
       function Changes({ sessionId, useChat }) {
         const marker = useChat(selectChanges);
         const rawTouched = useChat(selectTouched);
-        const { data, failed } = useSummary(sessionId, marker);
+        const { status, data, retry } = useSummary(sessionId, marker);
         const touched = rawTouched ? JSON.parse(rawTouched) : null;
-        if ((!marker || failed) && touched) {
+        const failure = marker && status === 'failed'
+          ? h('div', { className: 'wb-muted wb-notice', 'data-tone': 'error', role: 'status' },
+              h('span', null, t('changesFailed')),
+              h('button', { type: 'button', className: 'wb-link', onClick: retry }, t('retry')))
+          : null;
+        if ((!marker || status === 'expired' || status === 'failed') && touched) {
           return h('section', { className: 'wb-section' },
             h('div', { className: 'wb-heading' }, t('changes'), h('small', null, fill(t('changesOf'), { turn: touched.turn }))),
             h('div', { className: 'wb-group' },
-              touched.paths.slice(0, 5).map((path) => h('div', { key: path, className: 'wb-row', title: path },
-                h('span', { className: 'wb-label' }, path.split(/[\\/]/).pop())))),
-            failed ? h('div', { className: 'wb-muted' }, t('changesExpired')) : null);
+              h(Folded, { t, items: touched.paths, limit: 5, render: (path) => h('div', { key: path, className: 'wb-row', title: path },
+                h('span', { className: 'wb-label' }, path.split(/[\\/]/).pop())) })),
+            failure ?? (status === 'expired' ? h('div', { className: 'wb-muted' }, t('changesExpired')) : null));
         }
-        if (!marker || failed) {
+        if (!marker || status !== 'ready') {
           return h('section', { className: 'wb-section' },
             h('div', { className: 'wb-heading' }, t('changes')),
-            h('div', { className: 'wb-muted' }, t('noChanges')));
+            failure ?? h('div', { className: 'wb-muted', role: 'status' },
+              !marker ? t('noChanges') : status === 'loading' ? t('changesLoading') : t('changesGone')));
         }
         const [seq, turn] = marker.split(':');
         const open = (index) => right().openResource(reviewAddress(sessionId, seq, turn), { params: { index } });
@@ -360,7 +406,7 @@ button.wb-row:active { background: var(--dsw-alias-interactive-bg-active); }
           h('div', { className: 'wb-heading' }, t('changes'), h('small', null, fill(t('changesOf'), { turn }))),
           files.length > 0
             ? h('div', { className: 'wb-group' },
-                files.slice(0, 4).map((file, index) => h('button', {
+                h(Folded, { t, items: files, limit: 4, render: (file, index) => h('button', {
                   key: file.display ?? index,
                   type: 'button',
                   className: 'wb-row',
@@ -372,7 +418,7 @@ button.wb-row:active { background: var(--dsw-alias-interactive-bg-active); }
                   : file.oversized ? h('span', { className: 'wb-meta' }, t('oversized'))
                   : h('span', { className: 'wb-meta' },
                       h('span', { className: 'wb-added' }, `+${file.added ?? 0}`), ' ',
-                      h('span', { className: 'wb-deleted' }, `−${file.deleted ?? 0}`)))),
+                      h('span', { className: 'wb-deleted' }, `−${file.deleted ?? 0}`))) }),
                 h('button', { type: 'button', className: 'wb-row', onClick: () => open(0) },
                   h('span', { className: 'wb-label wb-action' }, t('reviewAll')),
                   h('span', { className: 'wb-meta' }, fill(t('changed'), { count: data.total ?? files.length }))))
@@ -391,9 +437,15 @@ button.wb-row:active { background: var(--dsw-alias-interactive-bg-active); }
           h('div', { className: 'wb-heading' }, tasks.length > 0 ? t('tasks') : t('plan'),
             tasks.length > 0 ? h('small', null, fill(t('tasksDone'), { done, total: tasks.length })) : null),
           h('div', { className: 'wb-group' },
-            tasks.slice(0, 6).map((task, index) => h('div', { key: index, className: 'wb-row', 'data-status': task.status },
-              h('span', { className: 'wb-mark', 'data-status': task.status, 'aria-hidden': 'true' }),
-              h('span', { className: 'wb-label', title: task.text }, task.text))),
+            h(Folded, {
+              t,
+              items: tasks.map((task, index) => ({ ...task, index })),
+              limit: 6,
+              urgent: (task) => task.status === 'in_progress' || task.status === 'failed' || task.status === 'error',
+              render: (task) => h('div', { key: task.index, className: 'wb-row', 'data-status': task.status },
+                h('span', { className: 'wb-mark', 'data-status': task.status, 'aria-hidden': 'true' }),
+                h('span', { className: 'wb-label', title: task.text }, task.text)),
+            }),
             callId
               ? h('button', { type: 'button', className: 'wb-row', onClick: () => right().openResource(planAddress(sessionId, callId)) },
                   h('span', { className: 'wb-label wb-action' }, t('openPlan')))
@@ -404,7 +456,7 @@ button.wb-row:active { background: var(--dsw-alias-interactive-bg-active); }
         const raw = useSessions((state) => JSON.stringify(
           Object.values(state.byId ?? {})
             .filter((item) => item.origin === 'subagent' && item.parentId === sessionId)
-            .map((item) => ({ id: item.id, title: item.displayTitle ?? item.title ?? '', running: item.running === true })),
+            .map((item) => ({ id: item.id, title: item.displayTitle ?? item.title ?? '', running: item.running === true, failed: /fail|error/i.test(String(item.status ?? item.outcome ?? '')) })),
         ));
         const children = JSON.parse(raw);
         if (children.length === 0) return null;
@@ -415,9 +467,16 @@ button.wb-row:active { background: var(--dsw-alias-interactive-bg-active); }
         return h('section', { className: 'wb-section' },
           h('div', { className: 'wb-heading' }, t('subagents')),
           h('div', { className: 'wb-group' },
-            children.slice(0, 5).map((child) => h('button', { key: child.id, type: 'button', className: 'wb-row', onClick: () => open(child.id) },
-              h('span', { className: 'wb-label', title: child.title }, child.title || child.id),
-              h('span', { className: 'wb-meta' }, child.running ? t('subagentRunning') : t('subagentDone'))))));
+            h(Folded, {
+              t,
+              items: children,
+              limit: 5,
+              urgent: (child) => child.running || child.failed,
+              render: (child) => h('button', { key: child.id, type: 'button', className: 'wb-row', onClick: () => open(child.id) },
+                h('span', { className: 'wb-label', title: child.title }, child.title || child.id),
+                h('span', { className: child.failed ? 'wb-meta wb-deleted' : 'wb-meta' },
+                  child.running ? t('subagentRunning') : child.failed ? t('subagentFailed') : t('subagentDone'))),
+            })));
       }
 
       function Tools({ openTab }) {

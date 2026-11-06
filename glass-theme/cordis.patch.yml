@@ -1,4 +1,17 @@
-# glass-theme bundle patch: one Client row with the token layer and stylesheet.
+# glass-theme bundle patch: one row for the whole appearance, with its four groups of
+# settings. Turning a group off leaves the others running.
 - insert:
     - id: glass-theme
       name: '@tal-shin/dsh-glass-theme'
+      config:
+        color: true
+        backdrop: wash
+        glass: true
+        strength: 50
+        transparency: 50
+        blur: 18
+        refraction: 'off'
+        shape: true
+        radius: 22
+        interaction: true
+        motion: standard

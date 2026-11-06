@@ -2718,7 +2718,7 @@ function panelStyles() {
     width: '268px',
     zIndex: '60',
     padding: '14px 16px 12px',
-    borderRadius: '12px',
+    borderRadius: 'var(--dsw-radius-md, 12px)',
     border: '0.5px solid var(--dsw-alias-border-l2)',
     backgroundColor: 'color-mix(in srgb, var(--dsw-alias-bg-overlay, #ffffff) 86%, transparent)',
     backdropFilter: 'blur(20px) saturate(150%)',
@@ -2806,7 +2806,7 @@ function openPanel() {
   const paletteLabel = label('Colour');
   const palette = document.createElement('select');
   palette.style.cssText =
-    'flex:1;min-width:0;padding:3px 6px;border-radius:6px;border:0.5px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);color:inherit;font:inherit';
+    'flex:1;min-width:0;padding:3px 6px;border-radius:var(--dsw-radius-xs, 6px);border:0.5px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);color:inherit;font:inherit';
   for (const [value, text] of [
     ['mixed', 'Mixed'],
     ['warm', 'Warm (red, gold)'],
@@ -3086,14 +3086,14 @@ function installSettingsButton(ctx) {
           height: '28px',
           padding: '0 10px',
           border: '0.5px solid var(--dsw-alias-border-l2)',
-          borderRadius: '6px',
+          borderRadius: 'var(--dsw-radius-sm, 10px)',
           background: 'transparent',
           color: 'var(--dsw-alias-label-secondary)',
-          font: 'inherit',
+          font: 'var(--dsw-font-xs-13, 13px/20px var(--dsw-font-family))',
           cursor: 'pointer',
         },
       },
-      'Pond'
+      String(navigator.language || '').toLowerCase().startsWith('zh') ? '锦鲤' : 'Pond'
     );
   }
 

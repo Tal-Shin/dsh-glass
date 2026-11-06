@@ -1,8 +1,8 @@
 {
   "name": "@tal-shin/dsh-glass-theme",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "type": "module",
-  "description": "Neutral greys, system blue and translucent floating panels for the DSH shell.",
+  "description": "Colour, glass, corners and type, and motion for the DSH shell, each switchable on its own.",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
@@ -34,7 +34,7 @@
       ]
     },
     "displayName": "Glass Theme",
-    "description": "System colours and translucent panels."
+    "description": "Colour, glass, corners and motion in one appearance bundle."
   },
   "icon": "./icon.svg",
   "license": "MIT",

@@ -1,6 +1,6 @@
 {
   "name": "@tal-shin/dsh-koi-pond",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "type": "module",
   "description": "A living ASCII koi pond behind the shell, independent of the active theme.",
   "exports": {

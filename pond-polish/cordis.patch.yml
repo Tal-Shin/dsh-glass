@@ -1,8 +1,0 @@
-# pond-polish bundle patch.
-#
-# One row: a Client-only plugin that stacks a token layer and one stylesheet on
-# top of whatever theme is active. It never edits the theme package, so removing
-# this row (or disabling the bundle) restores the unmodified look.
-- insert:
-    - id: pond-polish
-      name: '@tal-shin/dsh-pond-polish'
