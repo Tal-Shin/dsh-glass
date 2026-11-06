@@ -235,7 +235,7 @@ window.__ModuleLoader__.load({
   font: inherit;
   text-align: left;
 }
-button.wb-row { cursor: pointer; transition: background-color .15s ease; }
+button.wb-row { cursor: pointer; transition: background-color var(--glass-instant, .1s) ease; }
 button.wb-row:hover { background: var(--dsw-alias-interactive-bg-hover); }
 button.wb-row:active { background: var(--dsw-alias-interactive-bg-active); }
 .wb-row svg { flex: none; }
@@ -281,11 +281,12 @@ button.wb-row:active { background: var(--dsw-alias-interactive-bg-active); }
 [data-composer-dock] > span:has(> * > [aria-haspopup='dialog']) {
   display: none;
 }
-/* The strip also held the composer off the card edge; keep the same 16px as the sides.
-   DSH 0.2.2 reserves 22px for the strip, which would leave a gap with nothing in it. */
+/* The strip also held the composer off the card edge; keep the theme's gap, or 16px without it.
+   DSH leaves 4px of its own below this. DSH 0.2.2 reserves 22px for the strip, which would
+   leave a gap with nothing in it. */
 [data-composer-dock] {
   min-height: 0 !important;
-  padding-top: 12px;
+  padding-top: calc(var(--glass-seat-gap, 16px) - 4px);
 }
 @media (prefers-reduced-motion: reduce) {
   button.wb-row { transition: none; }
@@ -422,7 +423,7 @@ button.wb-row:active { background: var(--dsw-alias-interactive-bg-active); }
                 h('button', { type: 'button', className: 'wb-row', onClick: () => open(0) },
                   h('span', { className: 'wb-label wb-action' }, t('reviewAll')),
                   h('span', { className: 'wb-meta' }, fill(t('changed'), { count: data.total ?? files.length }))))
-            : null);
+            : h('div', { className: 'wb-muted' }, t('noChanges')));
       }
 
       function Plan({ sessionId, useChat, values }) {

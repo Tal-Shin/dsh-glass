@@ -119,7 +119,7 @@ window.__ModuleLoader__.load({
   font-size: 12px;
   line-height: 1;
   cursor: pointer;
-  transition: background-color .14s ease, color .14s ease;
+  transition: background-color var(--glass-instant, .14s) ease, color var(--glass-instant, .14s) ease;
 }
 .dtr-chip:hover {
   background: var(--dsw-alias-interactive-bg-hover);

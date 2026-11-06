@@ -227,6 +227,14 @@ window.__ModuleLoader__.load({
        variables with solid fallbacks, so this layer never needs overriding. Filters stay
        on pseudo-elements so fixed-position shell controls keep their viewport anchor. */
     const BASE_CSS = String.raw`
+/* Values more than one group reads. The gap is laid out here and subtracted from the corner in
+   the shape group, so spacing and radius cannot drift apart. */
+body {
+  --glass-seat-gap: 16px;
+  --glass-instant: .1s;
+  --glass-control: .2s;
+}
+
 body [data-slot="root"] > div {
   position: relative;
   z-index: 1;
@@ -346,7 +354,7 @@ html body [data-slot="root"] > div > div:has([data-slot="main"])::before {
   inset: 10px 0 12px;
   background: var(--lg-sheet-fill, var(--dsw-alias-bg-layer-1));
   box-shadow: var(--lg-sheet-shadow, var(--glass-shadow-rest, 0 1px 3px rgb(0 0 0 / .08)));
-  transition: opacity .32s ease, visibility 0s;
+  transition: opacity var(--glass-spring-duration, .36s) ease, visibility 0s;
 }
 html body [data-slot="root"] > div:is([data-rightbar-collapsed="true"], :not(:has([data-sidebar-right-open]))) > div:has([data-slot="main"])::before {
   right: 18px;
@@ -354,7 +362,7 @@ html body [data-slot="root"] > div:is([data-rightbar-collapsed="true"], :not(:ha
 html body [data-slot="root"] > div > div:has([data-slot="main"]):has([data-slot^="conversation.hero"])::before {
   opacity: 0;
   visibility: hidden;
-  transition: opacity .32s ease, visibility 0s linear .32s;
+  transition: opacity var(--glass-spring-duration, .36s) ease, visibility 0s linear var(--glass-spring-duration, .36s);
 }
 html body [data-slot="main"] > *,
 html body [data-slot="main.conversation"] > * {
@@ -414,6 +422,10 @@ html body [data-rightbar-col] [data-sidebar-right-panel="fullscreen"][data-sideb
   inset: 0;
 }
 
+html body ._5Qcc8a_trigger {
+  line-height: 20px;
+}
+
 /* The composer is one lens: the fill sits underneath, so the card itself never becomes
    a containing block for its fixed-position children. */
 html body [data-composer-card] {
@@ -426,7 +438,7 @@ html body [data-composer-card] {
   border: 1px solid var(--lg-edge, var(--dsw-alias-border-l2));
   border-radius: var(--dsw-radius-panel, 22px);
   box-shadow: var(--lg-composer-shadow, var(--dsw-shadow-lv2)) !important;
-  transition: border-color .18s ease, box-shadow .18s ease;
+  transition: border-color var(--glass-control) ease, box-shadow var(--glass-control) ease;
 }
 html body [data-composer-card]::before {
   content: "";
@@ -436,8 +448,8 @@ html body [data-composer-card]::before {
   pointer-events: none;
   border-radius: inherit;
   background: var(--lg-composer-fill, var(--dsw-alias-bg-layer-1));
-  -webkit-backdrop-filter: var(--lg-clear, none);
-  backdrop-filter: var(--lg-clear, none);
+  -webkit-backdrop-filter: var(--lg-composer-filter, none);
+  backdrop-filter: var(--lg-composer-filter, none);
   box-shadow: var(--lg-rim-shadow, none);
 }
 html body [data-composer-card]:focus-within {
@@ -452,11 +464,15 @@ html body [data-composer-card] button[class*="_primary"]:disabled {
   color: #fff;
   opacity: 1;
 }
+html body[data-ds-dark-theme] [data-composer-card] button[class*="_primary"]:disabled {
+  color: rgb(255 255 255 / .38);
+}
 html body [data-composer-seat] {
   background-image: none !important;
 }
-html body [class*='an3WzG_root'][data-phase='active'] [data-composer-card] {
-  margin-right: calc(-1 * var(--dsh-scrollbar-width, 6px));
+/* The same gap on both sides of the card: the scrollbar already takes its width on the right. */
+html body [class*='an3WzG_root'][data-phase='active'] [class*='GRgSLq_root'] {
+  padding-inline: var(--glass-seat-gap) calc(var(--glass-seat-gap) - var(--dsh-scrollbar-width, 6px));
 }
 html body [data-conversation-composer-overlay] {
   background-color: transparent !important;
@@ -485,15 +501,24 @@ html body [class*='_bannerWrap'] {
 }
 
 /* Bars that stick while content scrolls beneath them. The shell paints them with the
-   page's base colour, which shows as a square block on a rounded card. The page bar
-   fades out at its foot, so at rest it leaves no edge on the sheet. */
+   page's base colour, which shows as a square block on a rounded card. The page bar appears
+   with the first pixels of scroll, because at rest nothing passes under it and any fill
+   would be a band. It stays inside the card's border, so its blur leaves that edge alone, and
+   the page scrolls below the border too, or content would show through the gap above the bar. */
+@keyframes glass-bar-in { to { opacity: 1; } }
+html body .V7pFBG_pageBody {
+  border-top: 1px solid transparent;
+}
 html body [class*='V7pFBG_pageBar'][data-natural]::before {
-  background: var(--lg-sheet, var(--dsw-alias-bg-layer-1));
+  inset: 0 1px auto;
+  background: var(--lg-thick, var(--dsw-alias-bg-layer-1));
   -webkit-backdrop-filter: var(--lg-refraction, none);
   backdrop-filter: var(--lg-refraction, none);
-  border-radius: var(--dsw-radius-panel, 22px) var(--dsw-radius-panel, 22px) 0 0;
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent);
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent);
+  border-radius: calc(var(--dsw-radius-panel, 22px) - 1px) calc(var(--dsw-radius-panel, 22px) - 1px) 0 0;
+  opacity: 0;
+  animation: glass-bar-in linear both;
+  animation-timeline: scroll(nearest block);
+  animation-range: 0 14px;
 }
 html body [class*='VJlF5q_root'][data-expanded] [data-open] [data-disclosure-header],
 html body [class*='LOmM4q_compactionRow']:has([class*='LOmM4q_compactionBody']) [class*='LOmM4q_compactionButton'] {
@@ -537,6 +562,9 @@ html body [data-trajectory-scroll] tr[data-trajectory-row-key] > td:last-child {
 }
 html body [data-trajectory-scroll] tr[data-trajectory-row-key]:hover > td {
   background-color: var(--dsw-alias-interactive-bg-hover) !important;
+}
+html body [data-trajectory-scroll] tr[data-trajectory-row-key][data-selected="true"] > td {
+  background-color: var(--dsw-alias-interactive-bg-active) !important;
 }
 
 /* The conversation header is one row: title, view tabs, then actions. The title row
@@ -635,6 +663,14 @@ html body header [data-conversation-tabs] + * > button {
   color: var(--dsw-alias-label-secondary) !important;
 }
 [data-conversation-tabs] > [role='tab']::after { display: none !important; }
+[data-conversation-tabs] > [role='tab'][aria-selected='false']:hover,
+[class*='_tabs_1lga9'] > :not([class*='_indicator']):not([aria-selected='true']):not([data-active='true']):hover {
+  color: var(--dsw-alias-label-primary) !important;
+}
+[data-conversation-tabs] > [role='tab'][aria-selected='false']:active,
+[class*='_tabs_1lga9'] > :not([class*='_indicator']):not([aria-selected='true']):not([data-active='true']):active {
+  background: var(--dsw-alias-interactive-bg-hover) !important;
+}
 [data-conversation-tabs] > [role='tab'][aria-selected='true'] {
   background: color-mix(in srgb, var(--glass-base-solid, var(--dsw-alias-bg-base)) 88%, white) !important;
   color: var(--dsw-alias-label-primary) !important;
@@ -733,6 +769,17 @@ body {
   }
 }
 
+/* Keyboard focus stays visible over glass, with every group off too: it is how the app is
+   used without a mouse, not an effect. */
+body :is(button, a, [role='tab'], [role='menuitem']):focus-visible {
+  outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 3px;
+}
+body [role='treeitem']:focus-visible {
+  outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: -2px;
+}
+
 /* Settings form on the Plugins page. */
 .glass-form { display: flex; flex-direction: column; gap: 22px; }
 .glass-group { display: flex; flex-direction: column; gap: 12px; }
@@ -742,7 +789,7 @@ body {
 .glass-group-note { grid-column: 1; color: var(--dsw-alias-label-caption); font-size: 12px; line-height: 18px; }
 .glass-group-head > [role='switch'] { grid-column: 2; grid-row: 1 / span 2; }
 .glass-group[data-off='true'] .glass-field { opacity: .45; }
-.glass-field { display: grid; grid-template-columns: 7em 1fr 3.4em; align-items: center; gap: 12px; font-size: 13px; transition: opacity .15s ease; }
+.glass-field { display: grid; grid-template-columns: 7em 1fr 3.4em; align-items: center; gap: 12px; font-size: 13px; transition: opacity var(--glass-instant) ease; }
 .glass-field > label, .glass-field > span { color: var(--dsw-alias-label-primary); }
 .glass-field output { color: var(--dsw-alias-label-secondary); font-variant-numeric: tabular-nums; text-align: right; }
 .glass-field input[type='range'] { width: 100%; accent-color: var(--dsw-alias-state-business-primary); }
@@ -817,8 +864,8 @@ html body [data-slot='sidebar.settings'] button[class*='_indicator'] {
          thick          surfaces that float over everything, real blur, a floor on opacity
                         so text stays readable whatever is behind them;
          thin           cards inside those, a translucent fill and no blur of their own;
-         clear          the composer. A light fill with a directional rim and refraction, and
-                        a blur kept high enough to dissolve the text passing behind it: less
+         composer       a light fill with a directional rim and refraction, and a blur
+                        kept high enough to dissolve the text passing behind it: less
                         only smudges black text into smears under what you type. Its blur is
                         the card's own, so the blurred area is always exactly the card; a
                         separate layer behind it smeared the sheet's edge and cut text. */
@@ -836,7 +883,7 @@ body {
   --lg-glint: rgb(255 255 255 / calc(.22 * var(--lg-k, 1)));
   --lg-glint-idle: rgb(255 255 255 / calc(.12 * var(--lg-k, 1)));
   --lg-refraction: blur(var(--lg-blur, 18px)) saturate(calc(1 + .4 * var(--lg-k, 1)));
-  --lg-clear: blur(clamp(14px, var(--lg-blur, 18px), 22px)) saturate(calc(1 + .4 * var(--lg-k, 1))) brightness(1.05);
+  --lg-composer-filter: blur(clamp(14px, var(--lg-blur, 18px), 22px)) saturate(calc(1 + .4 * var(--lg-k, 1))) brightness(1.05);
   --lg-rim-dim: rgb(255 255 255 / calc(.34 * var(--lg-k, 1)));
   --lg-rim-glow: rgb(255 255 255 / calc(.16 * var(--lg-k, 1)));
   --lg-rim-shade: rgb(0 0 0 / calc(.07 * var(--lg-k, 1)));
@@ -870,7 +917,7 @@ body {
 body[data-ds-dark-theme] {
   --lg-sheet: rgb(28 28 30 / calc(var(--lg-alpha, .56) + .04));
   --lg-panel: rgb(34 34 36 / calc(var(--lg-alpha, .56) + .02));
-  --lg-composer: rgb(44 44 46 / calc(var(--lg-alpha, .56) * .4 + .12));
+  --lg-composer: rgb(44 44 46 / calc(var(--lg-alpha, .56) * .4 + .26));
   --lg-thick: rgb(36 36 38 / max(.66, calc(var(--lg-alpha, .56) + .2)));
   --lg-thin: rgb(255 255 255 / calc(.02 + var(--lg-alpha, .56) * .07));
   --lg-wash: rgb(255 255 255 / .03);
@@ -882,7 +929,7 @@ body[data-ds-dark-theme] {
   --lg-rim-glow: rgb(255 255 255 / calc(.04 * var(--lg-k, 1)));
   --lg-rim-shade: rgb(0 0 0 / calc(.20 * var(--lg-k, 1)));
   --lg-refraction: blur(var(--lg-blur, 18px)) saturate(calc(1 + .25 * var(--lg-k, 1)));
-  --lg-clear: blur(clamp(14px, var(--lg-blur, 18px), 22px)) saturate(calc(1 + .25 * var(--lg-k, 1))) brightness(1.1);
+  --lg-composer-filter: blur(clamp(20px, var(--lg-blur, 18px), 28px)) saturate(calc(1 + .25 * var(--lg-k, 1))) brightness(1.1);
   --dsw-alias-bg-module-platform: rgb(120 120 128 / .16) !important;
   --dsw-alias-markdown-tag: rgb(120 120 128 / .24) !important;
   --dsw-alias-interactive-bg-hover-solid: rgb(120 120 128 / .24) !important;
@@ -902,6 +949,10 @@ html body :is([data-slot="main"], [data-rightbar-col]) {
   --dsw-alias-bg-layer-2: var(--lg-wash);
   --dsw-specific-input-major: var(--lg-thick);
 }
+/* Things that sit on the panels but paint with the base colour themselves. */
+html body .dtr-chip {
+  --dsw-alias-bg-base: var(--glass-base-solid);
+}
 /* The one place the shell uses the base colour as a foreground. */
 html body [class*='_7rgC5q_item']::after {
   color: var(--glass-base-solid);
@@ -910,6 +961,28 @@ html body [class*='_7rgC5q_item']::after {
 html body :is(.MKE-pW_overlay, .kBGKfW_onboardingOverlay) {
   background: var(--glass-base-solid);
 }
+/* Below the card, text would turn sharp again in the gap. This strip dissolves it. It must not
+   repeat what went wrong with a full layer here: its top edge is behind the card, its sides are
+   the card's sides so nothing runs through the gutters, and it stays 1px inside the sheet so the
+   sheet's border is not smeared. Its corners are the sheet's, moved in by the gap, so they stay
+   inside the sheet. */
+html body [class*='an3WzG_root'][data-phase='active'] [data-composer-seat]::before {
+  content: '';
+  position: absolute;
+  left: var(--glass-seat-gap);
+  right: calc(var(--glass-seat-gap) - var(--dsh-scrollbar-width, 6px));
+  bottom: 1px;
+  height: var(--dsw-radius-panel, 22px);
+  z-index: -1;
+  pointer-events: none;
+  border-radius: 0 0 calc(var(--dsw-radius-panel, 22px) - 1px) calc(var(--dsw-radius-panel, 22px) - 1px);
+  /* Brightness or saturation would tint the empty gutters into a band. The sheet's own colour
+     does not: it only thins the smear that blurred text leaves. */
+  background: color-mix(in srgb, var(--glass-base-solid, transparent) 55%, transparent);
+  -webkit-backdrop-filter: blur(26px);
+  backdrop-filter: blur(26px);
+}
+
 /* Declared here, not on body: the highlight follows --lg-x set on this element. */
 html body [data-composer-card] {
   --lg-composer-fill:
@@ -919,8 +992,8 @@ html body [data-composer-card] {
 }
 /* Refraction: the lens filter bends what the blur produced, strongest at the rim. */
 html[data-lg-refraction="lens"] body [data-composer-card][data-lg-lens]::before {
-  -webkit-backdrop-filter: var(--lg-clear) var(--lg-lens);
-  backdrop-filter: var(--lg-clear) var(--lg-lens);
+  -webkit-backdrop-filter: var(--lg-composer-filter) var(--lg-lens);
+  backdrop-filter: var(--lg-composer-filter) var(--lg-lens);
 }
 
 /* Floating surfaces. Menus get their blur from the shell's own tokens above. */
@@ -962,7 +1035,7 @@ html body [class*='_input_181ew'] {
   background: rgb(118 118 128 / .12);
 }
 /* Scroll-to-bottom floats over the transcript, so what passes under it has to blur. */
-html body [class*='_toBottom'] {
+html body .V4vHZW_toBottom {
   -webkit-backdrop-filter: blur(14px) saturate(150%);
   backdrop-filter: blur(14px) saturate(150%);
 }
@@ -975,21 +1048,22 @@ html body [class*='_toBottom'] {
     --lg-thick: var(--dsw-alias-bg-base);
     --lg-thin: var(--dsw-alias-bg-layer-1);
     --lg-refraction: none;
-    --lg-clear: none;
+    --lg-composer-filter: none;
     --lg-glint: transparent;
     --lg-glint-idle: transparent;
     --dsw-menu-backdrop-filter: none !important;
   }
-  html[data-lg-refraction="lens"] body [data-composer-card][data-lg-lens]::before {
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
+}
+@media (prefers-reduced-transparency: reduce) {
+  html body [class*='an3WzG_root'][data-phase='active'] [data-composer-seat]::before {
+    display: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {
   html body [data-composer-card] { --lg-composer-fill: var(--lg-composer); }
 }
 @media print {
-  body, body[data-ds-dark-theme] { --lg-refraction: none; --lg-clear: none; }
+  body, body[data-ds-dark-theme] { --lg-refraction: none; --lg-composer-filter: none; }
 }
 `;
 
@@ -1008,9 +1082,13 @@ html, body {
 
 /* Concentric corners: anything sitting in a corner takes that corner's radius minus the gap
    between them, so the two curves run parallel. Written as formulas, so the slider moves
-   them together; the floors stop small panel radii from squaring things off. */
+   them together; the floors stop small panel radii from squaring things off. The seat gap is
+   ours. The other three are the shell's own padding, named here so each appears once. */
 html body {
-  --glass-composer-radius: max(calc(var(--dsw-radius-panel, 22px) - 16px), 12px);
+  --glass-panel-inset: 10px;
+  --glass-composer-inset: 9px;
+  --glass-menu-inset: 5px;
+  --glass-composer-radius: max(calc(var(--dsw-radius-panel, 22px) - var(--glass-seat-gap, 16px)), 12px);
 }
 html body [data-composer-card] {
   border-radius: var(--glass-composer-radius);
@@ -1018,14 +1096,16 @@ html body [data-composer-card] {
 html body [data-composer-card]::before {
   border-radius: calc(var(--glass-composer-radius) - 1px);
 }
+/* The shell marks these round, for circles. Here they follow the card's curve instead. */
 html body [data-composer-card] :is(button[class*='_primary'], [class*='GRgSLq_add']) {
-  border-radius: max(calc(var(--glass-composer-radius) - 9px), 8px);
+  border-radius: max(calc(var(--glass-composer-radius) - var(--glass-composer-inset)), 8px);
+  corner-shape: var(--dsw-corner-shape, round);
 }
 html body :is(._5Qcc8a_trigger, [data-rightbar-col] [class*='_tab_3oazc']) {
-  border-radius: calc(var(--dsw-radius-panel, 22px) - 10px);
+  border-radius: calc(var(--dsw-radius-panel, 22px) - var(--glass-panel-inset));
 }
 html body [data-menu-material] [class*='_item_1p5el'] {
-  border-radius: calc(var(--dsw-radius-lg, 14px) - 5px);
+  border-radius: calc(var(--dsw-radius-lg, 14px) - var(--glass-menu-inset));
 }
 
 /* Light comes from above: a hairline edge, then a wide falloff that never reads as a
@@ -1070,16 +1150,14 @@ html body [data-chat-turn] :is(h1, h2, h3, h4) {
     /* ── motion ────────────────────────────────────────────────────────────────
        A damped spring (response .3s, damping ratio .8) sampled for linear(): it settles
        in .36s with a barely visible overshoot, so controls feel quick rather than bouncy.
-       --lg-motion scales every distance: 0 off, 1 standard, 1.6 lively. */
+       --lg-motion scales every distance: 0 off, 1 standard, 1.6 lively. Presses scale less
+       than that: a button that shrinks visibly reads as broken, however lively the setting.
+       Three speeds: instant for hover and press, control for a control changing state, and
+       the spring for surfaces and thumbs moving. */
     const MOTION_CSS = String.raw`
 body {
+  --glass-press: min(var(--lg-motion, 1), 1.25);
   --glass-spring: linear(0, 0.07, 0.223, 0.399, 0.565, 0.705, 0.813, 0.893, 0.947, 0.981, 1.001, 1.011, 1.015, 1.015, 1.013, 1.01, 1.008, 1.005, 1);
-}
-
-/* Keyboard focus stays visible over glass. */
-body :is(button, a, [role='tab'], [role='menuitem']):focus-visible {
-  outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
-  outline-offset: 3px;
 }
 
 /* Rows answer with a fill, because scaling a wide row makes its far edge jump. */
@@ -1091,11 +1169,11 @@ body :is(button, a, [role='tab'], [role='menuitem']):focus-visible {
 @media (prefers-reduced-motion: no-preference) {
   /* Switches: the thumb springs across, and stretches while it is held. */
   [role='switch'] {
-    transition: background-color .2s ease;
+    transition: background-color var(--glass-control) ease;
   }
   [role='switch'] > span:only-child {
     box-shadow: 0 1px 2px rgba(0,0,0,.22), 0 0 0 .5px rgba(0,0,0,.05);
-    transition: transform var(--glass-spring-duration, .36s) var(--glass-spring), width .18s ease;
+    transition: transform var(--glass-spring-duration, .36s) var(--glass-spring), width var(--glass-control) ease;
   }
   [role='switch']:active:not(:disabled) > span:only-child {
     width: 20px;
@@ -1105,7 +1183,7 @@ body :is(button, a, [role='tab'], [role='menuitem']):focus-visible {
   }
 
   [data-conversation-tabs] > [role='tab'] {
-    transition: background-color .16s ease, color .16s ease, box-shadow .16s ease;
+    transition: background-color var(--glass-control) ease, color var(--glass-control) ease, box-shadow var(--glass-control) ease;
   }
   [data-conversation-tabs]::before {
     transition: left var(--glass-spring-duration, .36s) var(--glass-spring), width var(--glass-spring-duration, .36s) var(--glass-spring);
@@ -1117,22 +1195,23 @@ body :is(button, a, [role='tab'], [role='menuitem']):focus-visible {
   [data-slot='root'] header button,
   [data-rightbar-col] button {
     transition:
-      background-color .15s ease, color .15s ease, border-color .15s ease,
-      box-shadow .15s ease, opacity .15s ease, transform .15s ease,
+      background-color var(--glass-instant) ease, color var(--glass-instant) ease, border-color var(--glass-instant) ease,
+      box-shadow var(--glass-instant) ease, opacity var(--glass-instant) ease, transform var(--glass-instant) ease,
       scale var(--glass-spring-duration, .36s) var(--glass-spring);
   }
   [data-composer-card] button:active:not(:disabled) {
-    scale: calc(1 - .04 * var(--lg-motion, 1));
-    transition-duration: .08s;
+    scale: calc(1 - .03 * var(--glass-press));
+    transition-duration: var(--glass-instant);
   }
-  [data-composer-card] button[class*='_primary']:active:not(:disabled) {
-    scale: calc(1 - .1 * var(--lg-motion, 1));
+  :is([data-composer-card], [data-slot='root'] header) button[class*='_primary']:active:not(:disabled) {
+    scale: calc(1 - .04 * var(--glass-press));
+    transition-duration: var(--glass-instant);
   }
   /* Only small controls in the right panel shrink: icon buttons and chips. */
-  [data-slot='root'] header button:not([role='tab']):active:not(:disabled),
+  [data-slot='root'] header button:not([role='tab'], [class*='_primary']):active:not(:disabled),
   [data-rightbar-col] button:is(:has(> svg:only-child), [aria-label]:not(:has(> span))):not(.wb-row, [role='tab'], [role='menuitem'], [role='treeitem']):active:not(:disabled) {
-    scale: calc(1 - .07 * var(--lg-motion, 1));
-    transition-duration: .08s;
+    scale: calc(1 - .06 * var(--glass-press));
+    transition-duration: var(--glass-instant);
   }
 
   /* Surfaces arrive from slightly small and settle; scale and translate are independent
@@ -1149,7 +1228,7 @@ body :is(button, a, [role='tab'], [role='menuitem']):focus-visible {
     animation: glass-sheet var(--glass-spring-duration, .36s) var(--glass-spring);
   }
   [class*='_overlay'] > [class*='_mask'] {
-    animation: glass-fade .2s ease;
+    animation: glass-fade var(--glass-control) ease;
   }
 }
 html[data-lg-motion="off"] body :is([data-menu-material], [role='dialog'], [class*='_overlay'] > [class*='_mask']) {
@@ -1223,7 +1302,8 @@ html[data-lg-motion="off"] body :is([data-menu-material], [role='dialog'], [clas
         interaction: '交互动效', interactionNote: '按压反馈、弹入动效、开关和键盘焦点。',
         strength: '玻璃强度', transparency: '透明度', blur: '模糊度', radius: '圆角', motion: '动效强度', backdrop: '背景样式', refraction: '高级渲染',
         off: '关', subtle: '轻', standard: '标准', lively: '活泼', wash: '柔和渐变', vivid: '鲜明渐变', plain: '纯色', lens: '折射透镜',
-        refractionHint: '输入框边缘按曲面玻璃弯折背后的画面，带轻微色散。输入框的模糊保持在 14～22px，让背后的文字完全化开。',
+        blurHint: '用于面板、菜单和弹窗。输入框有自己的模糊强度，让背后的文字化开。',
+        refractionHint: '输入框边缘按曲面玻璃弯折背后的画面，带轻微色散。',
         refractionUnsupported: '当前环境不支持折射，已自动关闭。',
         save: '保存', saving: '正在保存…', saveFailed: '保存失败，请重试。', unavailable: '设置暂时不可用。', readOnly: '此配置为只读。',
         discard: '放弃', reset: '重置', overridden: '已覆盖',
@@ -1236,7 +1316,8 @@ html[data-lg-motion="off"] body :is([data-menu-material], [role='dialog'], [clas
         interaction: 'Motion', interactionNote: 'Press feedback, surfaces settling in, switches and keyboard focus.',
         strength: 'Strength', transparency: 'Transparency', blur: 'Blur', radius: 'Corners', motion: 'Intensity', backdrop: 'Background', refraction: 'Rendering',
         off: 'Off', subtle: 'Subtle', standard: 'Standard', lively: 'Lively', wash: 'Soft wash', vivid: 'Vivid wash', plain: 'Plain', lens: 'Refraction',
-        refractionHint: 'Bends the scene at the composer rim like curved glass, with a faint colour fringe. The composer blur stays between 14 and 22px, so text behind it dissolves.',
+        blurHint: 'For panels, menus and dialogs. The composer keeps its own blur, so text behind it dissolves.',
+        refractionHint: 'Bends the scene at the composer rim like curved glass, with a faint colour fringe.',
         refractionUnsupported: 'Refraction is not supported here, so it stays off.',
         save: 'Save', saving: 'Saving…', saveFailed: 'Could not save. Try again.', unavailable: 'Settings are unavailable right now.', readOnly: 'This profile is read-only.',
         discard: 'Discard', reset: 'Reset', overridden: 'Overridden',
@@ -1387,10 +1468,19 @@ html[data-lg-motion="off"] body :is([data-menu-material], [role='dialog'], [clas
         card.setAttribute('data-lg-lens', '');
       };
 
+      // Redrawing the map costs several milliseconds, too much for every frame of a panel
+      // drag. The current map stretches to fit until the size settles.
       const resize = new ResizeObserver((entries) => {
         for (const item of entries) {
           const entry = lenses.get(item.target);
-          if (entry) build(item.target, entry);
+          if (!entry) continue;
+          const { clientWidth: width, clientHeight: height } = item.target;
+          for (const element of [entry.filter, entry.filter.querySelector('feImage')]) {
+            element?.setAttribute('width', String(width));
+            element?.setAttribute('height', String(height));
+          }
+          clearTimeout(entry.timer);
+          entry.timer = setTimeout(() => build(item.target, entry), 160);
         }
       });
       const attach = (card) => {
@@ -1398,7 +1488,7 @@ html[data-lg-motion="off"] body :is([data-menu-material], [role='dialog'], [clas
         const filter = document.createElementNS(SVG_NS, 'filter');
         filter.id = `lg-lens-${++serial}`;
         svg.append(filter);
-        const entry = { filter, key: '' };
+        const entry = { filter, key: '', timer: 0 };
         lenses.set(card, entry);
         resize.observe(card);
         build(card, entry);
@@ -1407,6 +1497,7 @@ html[data-lg-motion="off"] body :is([data-menu-material], [role='dialog'], [clas
         const entry = lenses.get(card);
         if (!entry) return;
         resize.unobserve(card);
+        clearTimeout(entry.timer);
         entry.filter.remove();
         lenses.delete(card);
         card.style.removeProperty('--lg-lens');
@@ -1425,7 +1516,7 @@ html[data-lg-motion="off"] body :is([data-menu-material], [role='dialog'], [clas
       scan();
       return {
         refresh() {
-          for (const [card, entry] of lenses) { entry.key = ''; build(card, entry); }
+          for (const [card, entry] of lenses) build(card, entry);
         },
         dispose() {
           observer.disconnect();
@@ -1592,7 +1683,8 @@ html[data-lg-motion="off"] body :is([data-menu-material], [role='dialog'], [clas
               id: `apple-${key}`, type: 'range', min, max, step: STEPS[key] ?? 1, value: draft[key], disabled: disabled || off,
               onChange: (event) => props.edit(key, event.target.value),
             }),
-            h('output', { htmlFor: `apple-${key}` }, `${draft[key]}${UNITS[key] ?? ''}`));
+            h('output', { htmlFor: `apple-${key}` }, `${draft[key]}${UNITS[key] ?? ''}`),
+            key === 'blur' ? h('div', { className: 'glass-hint' }, t('blurHint')) : null);
         };
         const choice = (key, off) => h('div', { key, className: 'glass-field' },
           h('span', { id: `apple-${key}` }, t(key)),
@@ -1632,6 +1724,7 @@ html[data-lg-motion="off"] body :is([data-menu-material], [role='dialog'], [clas
       ctx.effect(() => {
         // One element per group, in a fixed order, so switching a group off never
         // reorders the cascade.
+        const lessTransparency = window.matchMedia('(prefers-reduced-transparency: reduce)');
         const sheets = {};
         const sources = { base: BASE_CSS, color: COLOR_CSS, glass: GLASS_CSS, shape: SHAPE_CSS, motion: MOTION_CSS };
         for (const [name, text] of Object.entries(sources)) {
@@ -1671,7 +1764,8 @@ html[data-lg-motion="off"] body :is([data-menu-material], [role='dialog'], [clas
           if (current.interaction && !dropOrigin) dropOrigin = mountOrigin();
           else if (!current.interaction && dropOrigin) { dropOrigin(); dropOrigin = null; }
 
-          const wanted = current.glass && current.refraction === 'lens' && lensSupported();
+          // Not just hidden: with no glass to bend, the map and its observers do not run.
+          const wanted = current.glass && current.refraction === 'lens' && lensSupported() && !lessTransparency.matches;
           if (wanted && !lens) lens = mountLens(() => (draft ?? saved).strength / 50);
           else if (!wanted && lens) { lens.dispose(); lens = null; }
           else if (lens) lens.refresh();
@@ -1686,6 +1780,7 @@ html[data-lg-motion="off"] body :is([data-menu-material], [role='dialog'], [clas
           sync();
         };
         const unsubscribe = scope?.subscribe ? scope.subscribe(fold) : null;
+        lessTransparency.addEventListener('change', sync);
         fold();
         preview = (next) => {
           draft = next;
@@ -1694,6 +1789,7 @@ html[data-lg-motion="off"] body :is([data-menu-material], [role='dialog'], [clas
         return () => {
           preview = null;
           if (typeof unsubscribe === 'function') unsubscribe();
+          lessTransparency.removeEventListener('change', sync);
           lens?.dispose();
           dropHighlight?.();
           dropOrigin?.();

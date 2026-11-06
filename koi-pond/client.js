@@ -1721,9 +1721,161 @@ function mergeNearby(boxes) {
   return merged;
 }
 
-class PondEngine {
-  constructor(canvas, options = {}) {
+/**
+ * The DOM side of a pond: what it watches, and how it reads the page. A subclass supplies
+ * the drawing side, here or off the main thread, through schedule, resize, feed,
+ * pointerMoved, pointerLeft and scrolled.
+ */
+class PondSurface {
+  constructor(canvas) {
     this.canvas = canvas;
+    this.box = null;
+    this.visible = true;
+    this.disposed = false;
+    this.hidden = document.hidden;
+    this.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    this.reducedTransparency = window.matchMedia('(prefers-reduced-transparency: reduce)');
+  }
+
+  /** Subclass fields do not exist during super(), so each subclass calls this last. */
+  attach() {
+    this.resizeObserver = new ResizeObserver(() => this.resize());
+    this.intersectionObserver = new IntersectionObserver(([entry]) => {
+      this.visible = entry.isIntersecting;
+      this.schedule();
+    });
+    this.resizeObserver.observe(this.canvas);
+    this.intersectionObserver.observe(this.canvas);
+    this.reducedMotion.addEventListener('change', this.onPreferenceChange);
+    this.reducedTransparency.addEventListener('change', this.onPreferenceChange);
+    window.addEventListener('pointermove', this.onPointerMove, { passive: true });
+    window.addEventListener('click', this.onClick);
+    document.addEventListener('scroll', this.onAnyScroll, { capture: true, passive: true });
+    document.documentElement.addEventListener('pointerleave', this.onPointerLeave);
+    window.addEventListener('blur', this.onPointerLeave);
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
+    this.resize();
+    this.schedule();
+  }
+
+  destroy() {
+    this.disposed = true;
+    this.resizeObserver.disconnect();
+    this.intersectionObserver.disconnect();
+    this.reducedMotion.removeEventListener('change', this.onPreferenceChange);
+    this.reducedTransparency.removeEventListener('change', this.onPreferenceChange);
+    window.removeEventListener('pointermove', this.onPointerMove);
+    window.removeEventListener('click', this.onClick);
+    document.removeEventListener('scroll', this.onAnyScroll, { capture: true });
+    document.documentElement.removeEventListener('pointerleave', this.onPointerLeave);
+    window.removeEventListener('blur', this.onPointerLeave);
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
+  }
+
+  /** True when the shell is painting its light palette. */
+  readIsLight() {
+    return !document.body.hasAttribute('data-ds-dark-theme');
+  }
+
+  /**
+   * The canvas is fixed to the window, so its box changes only on a resize. Keeping it means
+   * a pointer event never has to read layout.
+   */
+  measureCanvas() {
+    this.box = this.canvas.getBoundingClientRect();
+    return this.box;
+  }
+
+  /** Canvas-space rects for one selector list, skipping anything unrendered. */
+  rectsFor(selectors) {
+    const origin = this.canvas.getBoundingClientRect();
+    const nodes = selectors.flatMap((selector) => Array.from(document.querySelectorAll(selector)));
+    return nodes
+      .map((el) => el.getBoundingClientRect())
+      .filter((b) => b.width > 0 && b.height > 0)
+      .map((b) => ({
+        left: b.left - origin.left,
+        top: b.top - origin.top,
+        right: b.right - origin.left,
+        bottom: b.bottom - origin.top,
+      }));
+  }
+
+  contentBoxes() {
+    // `data-koi-avoid` is the site's own contract: steer around it *and* fade
+    // beneath it. The shell's opaque panels only steer; the text blocks only
+    // fade. Keeping the two lists apart matters, because merging an opaque
+    // full-height sidebar with the composer would otherwise produce one huge box
+    // that washes out half the pond.
+    const own = mergeNearby(this.rectsFor([AVOID_TARGETS]));
+    const opaque = mergeNearby(this.rectsFor(OPAQUE_SELECTORS));
+    const text = mergeNearby(this.rectsFor(TEXT_SELECTORS));
+    const card = mergeNearby(this.rectsFor(CARD_SELECTORS));
+    // Not merged: a merged box would span the gutters between the panels, which is
+    // the one place the fish should stay crisp.
+    const panels = this.rectsFor(PANEL_SELECTORS);
+    return {
+      // Steering is limited to the panels that genuinely hide water. The faded
+      // boxes only dim what is drawn beneath them; adding them to `avoid` would
+      // let the composer's full-width seat merge with the sidebar into one wall
+      // and push every fish out of the centre column.
+      avoid: [...own, ...opaque],
+      groups: [
+        // The site's own contract: faint, so a koi reads as being under the words.
+        { boxes: own, floor: 0.15 },
+        // Words win over water; the feathered edge keeps the fade from reading as a box.
+        { boxes: text, floor: TEXT_FLOOR },
+        { boxes: card, floor: CARD_FLOOR },
+        { boxes: panels, floor: CARD_FLOOR },
+      ],
+    };
+  }
+
+  toLocal(e) {
+    const rect = this.box ?? this.measureCanvas();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    return { x, y, inside: x >= 0 && y >= 0 && x <= rect.width && y <= rect.height };
+  }
+
+  onPreferenceChange = () => {
+    this.schedule();
+  };
+
+  onVisibilityChange = () => {
+    this.hidden = document.hidden;
+    this.schedule();
+  };
+
+  onAnyScroll = () => {
+    this.scrolled();
+  };
+
+  onPointerMove = (e) => {
+    this.pointerMoved(this.toLocal(e), e);
+  };
+
+  onPointerLeave = () => {
+    this.pointerLeft();
+  };
+
+  // Clicks on empty space drop food; links, buttons, and text selection are left
+  // alone.
+  onClick = (e) => {
+    if (this.reducedMotion.matches || this.reducedTransparency.matches) return;
+    // The path recorded at dispatch, not target.closest(): a control that
+    // re-renders as it is clicked can leave the target detached, with no
+    // ancestors left to find the button through.
+    if (e.composedPath().some((n) => n instanceof Element && n.matches(INTERACTIVE))) return;
+    if (window.getSelection()?.toString()) return;
+    const { x, y, inside } = this.toLocal(e);
+    if (inside) this.feed(x, y);
+  };
+}
+
+class PondEngine extends PondSurface {
+  constructor(canvas, options = {}) {
+    super(canvas);
     this.world = new World({
       budget: options.budget ?? 0.7,
       fish: options.fish,
@@ -1736,36 +1888,11 @@ class PondEngine {
     this.acc = 0;
     this.frames = 0;
     this.lastPointerTime = 0;
-    this.visible = true;
-    this.disposed = false;
-    this.hidden = false;
     this.isLight = undefined;
     this.onStats = options.onStats ?? null;
     this.reported = { koi: -1, pellets: -1 };
-
-    this.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-    this.reducedTransparency = window.matchMedia('(prefers-reduced-transparency: reduce)');
-
-    this.resizeObserver = new ResizeObserver(() => this.resize());
-    this.intersectionObserver = new IntersectionObserver(([entry]) => {
-      this.visible = entry.isIntersecting;
-      this.schedule();
-    });
-
-    this.resizeObserver.observe(canvas);
-    this.intersectionObserver.observe(canvas);
-    this.reducedMotion.addEventListener('change', this.onPreferenceChange);
-    this.reducedTransparency.addEventListener('change', this.onPreferenceChange);
-    window.addEventListener('pointermove', this.onPointerMove, { passive: true });
-    window.addEventListener('click', this.onClick);
-    document.addEventListener('scroll', this.onAnyScroll, { capture: true, passive: true });
-    document.documentElement.addEventListener('pointerleave', this.onPointerLeave);
-    window.addEventListener('blur', this.onPointerLeave);
-    document.addEventListener('visibilitychange', this.onVisibilityChange);
-
     this.setTheme(this.readIsLight());
-    this.resize();
-    this.schedule();
+    this.attach();
   }
 
   /**
@@ -1787,24 +1914,9 @@ class PondEngine {
   }
 
   destroy() {
-    this.disposed = true;
+    super.destroy();
     cancelAnimationFrame(this.raf);
     this.raf = 0;
-    this.resizeObserver.disconnect();
-    this.intersectionObserver.disconnect();
-    this.reducedMotion.removeEventListener('change', this.onPreferenceChange);
-    this.reducedTransparency.removeEventListener('change', this.onPreferenceChange);
-    window.removeEventListener('pointermove', this.onPointerMove);
-    window.removeEventListener('click', this.onClick);
-    document.removeEventListener('scroll', this.onAnyScroll, { capture: true });
-    document.documentElement.removeEventListener('pointerleave', this.onPointerLeave);
-    window.removeEventListener('blur', this.onPointerLeave);
-    document.removeEventListener('visibilitychange', this.onVisibilityChange);
-  }
-
-  /** True when the shell is painting its light palette. */
-  readIsLight() {
-    return !document.body.hasAttribute('data-ds-dark-theme');
   }
 
   setTheme(isLight) {
@@ -1813,15 +1925,6 @@ class PondEngine {
     this.renderer.setTheme(isLight);
     if (this.reducedMotion.matches) this.drawStill();
   }
-
-  onPreferenceChange = () => {
-    this.schedule();
-  };
-
-  onVisibilityChange = () => {
-    this.hidden = document.hidden;
-    this.schedule();
-  };
 
   resize() {
     try {
@@ -1832,7 +1935,7 @@ class PondEngine {
   }
 
   resizeNow() {
-    const rect = this.canvas.getBoundingClientRect();
+    const rect = this.measureCanvas();
     if (rect.width < 1 || rect.height < 1) return;
     this.renderer.resize(rect.width, rect.height, Math.min(window.devicePixelRatio || 1, 2));
     this.world.resize(rect.width, rect.height);
@@ -1868,48 +1971,10 @@ class PondEngine {
     this.raf = requestAnimationFrame(this.frame);
   };
 
-  /** Canvas-space rects for one selector list, skipping anything unrendered. */
-  rectsFor(selectors) {
-    const origin = this.canvas.getBoundingClientRect();
-    const nodes = selectors.flatMap((selector) => Array.from(document.querySelectorAll(selector)));
-    return nodes
-      .map((el) => el.getBoundingClientRect())
-      .filter((b) => b.width > 0 && b.height > 0)
-      .map((b) => ({
-        left: b.left - origin.left,
-        top: b.top - origin.top,
-        right: b.right - origin.left,
-        bottom: b.bottom - origin.top,
-      }));
-  }
-
   measureContent() {
-    // `data-koi-avoid` is the site's own contract: steer around it *and* fade
-    // beneath it. The shell's opaque panels only steer; the text blocks only
-    // fade. Keeping the two lists apart matters, because merging an opaque
-    // full-height sidebar with the composer would otherwise produce one huge box
-    // that washes out half the pond.
-    const own = mergeNearby(this.rectsFor([AVOID_TARGETS]));
-    const opaque = mergeNearby(this.rectsFor(OPAQUE_SELECTORS));
-    const text = mergeNearby(this.rectsFor(TEXT_SELECTORS));
-    const card = mergeNearby(this.rectsFor(CARD_SELECTORS));
-    // Not merged: a merged box would span the gutters between the panels, which is
-    // the one place the fish should stay crisp.
-    const panels = this.rectsFor(PANEL_SELECTORS);
-
-    // Steering is limited to the panels that genuinely hide water. The faded
-    // boxes only dim what is drawn beneath them; adding them to `avoid` would
-    // let the composer's full-width seat merge with the sidebar into one wall
-    // and push every fish out of the centre column.
-    this.world.avoid = [...own, ...opaque];
-    this.renderer.setDimBoxes([
-      // The site's own contract: faint, so a koi reads as being under the words.
-      { boxes: own, floor: 0.15 },
-      // Words win over water; the feathered edge keeps the fade from reading as a box.
-      { boxes: text, floor: TEXT_FLOOR },
-      { boxes: card, floor: CARD_FLOOR },
-      { boxes: panels, floor: CARD_FLOOR },
-    ]);
+    const { avoid, groups } = this.contentBoxes();
+    this.world.avoid = avoid;
+    this.renderer.setDimBoxes(groups);
   }
 
   frame = (now) => {
@@ -1976,19 +2041,11 @@ class PondEngine {
     }
   }
 
-  toLocal(e) {
-    const rect = this.canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    return { x, y, inside: x >= 0 && y >= 0 && x <= rect.width && y <= rect.height };
+  scrolled() {
+    this.scrollingUntil = performance.now() + SCROLL_SETTLE_MS;
   }
 
-  onAnyScroll = () => {
-    this.scrollingUntil = performance.now() + SCROLL_SETTLE_MS;
-  };
-
-  onPointerMove = (e) => {
-    const { x, y, inside } = this.toLocal(e);
+  pointerMoved({ x, y, inside }, e) {
     const p = this.world.pointer;
     const elapsed = Math.max(1, e.timeStamp - this.lastPointerTime) / 1000;
     const speed = Math.hypot(x - p.x, y - p.y) / elapsed;
@@ -1997,27 +2054,17 @@ class PondEngine {
     p.x = x;
     p.y = y;
     p.active = inside && e.pointerType !== 'touch';
-  };
+  }
 
-  // Clicks on empty space drop food; links, buttons, and text selection are left
-  // alone.
-  onClick = (e) => {
-    if (this.reducedMotion.matches || this.reducedTransparency.matches) return;
-    // The path recorded at dispatch, not target.closest(): a control that
-    // re-renders as it is clicked can leave the target detached, with no
-    // ancestors left to find the button through.
-    if (e.composedPath().some((n) => n instanceof Element && n.matches(INTERACTIVE))) return;
-    if (window.getSelection()?.toString()) return;
-    const { x, y, inside } = this.toLocal(e);
-    if (!inside) return;
-    this.world.feed(x, y);
-    this.report();
-  };
-
-  onPointerLeave = () => {
+  pointerLeft() {
     this.world.pointer.active = false;
     this.world.pointer.speed = 0;
-  };
+  }
+
+  feed(x, y) {
+    this.world.feed(x, y);
+    this.report();
+  }
 
   /** Exposed for the smoke test: step the simulation without a browser clock. */
   static step(world, seconds) {
@@ -2026,7 +2073,7 @@ class PondEngine {
     return clamp(steps, 0, Infinity);
   }
 }
-return { PondEngine, mergeNearby, MEASURE_MS, SCROLL_SETTLE_MS, INTERACTIVE, AVOID_TARGETS, OPAQUE_SELECTORS, TEXT_SELECTORS, CARD_SELECTORS, PANEL_SELECTORS, TEXT_FLOOR, CARD_FLOOR };
+return { PondEngine, PondSurface, MEASURE_MS, SCROLL_SETTLE_MS };
 })();
 const { PondEngine } = __m_engine;
 
@@ -2121,6 +2168,8 @@ function workerMain(lib) {
           world = new World(m.options);
           renderer = new KoiRenderer(m.canvas, { maxCells: m.maxCells, isLight: m.isLight });
           renderer.setTheme(m.isLight);
+          self.postMessage({ type: 'ready' });
+          report(true);
           break;
         case 'resize':
           renderer.resize(m.width, m.height, m.dpr);
@@ -2173,35 +2222,38 @@ function workerMain(lib) {
           break;
       }
     } catch (error) {
-      self.postMessage({ type: 'error', message: String(error && (error.stack || error.message)) });
+      self.postMessage({ type: m.type === 'init' ? 'fatal' : 'error', message: String(error && (error.stack || error.message)) });
     }
   };
 }
 
-const {
-  mergeNearby, MEASURE_MS, SCROLL_SETTLE_MS, INTERACTIVE, AVOID_TARGETS, OPAQUE_SELECTORS,
-  TEXT_SELECTORS, CARD_SELECTORS, PANEL_SELECTORS, TEXT_FLOOR, CARD_FLOOR,
-} = __m_engine;
+const { PondSurface, MEASURE_MS, SCROLL_SETTLE_MS } = __m_engine;
 
-/** The main-thread half: DOM, input and lifecycle, with the same face as PondEngine. */
-class WorkerPond {
+/**
+ * The main-thread half: the page side of PondSurface, with drawing in the worker. Options
+ * are answered here at once; the fish list arrives from the worker a message later.
+ */
+class WorkerPond extends PondSurface {
   constructor(canvas, options = {}) {
     const source = `(${workerMain.toString()})((${pondLibrary.toString()})());`;
-    this.url = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
+    const url = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
+    let worker;
     try {
-      this.worker = new Worker(this.url, { name: 'koi-pond' });
+      worker = new Worker(url, { name: 'koi-pond' });
     } catch (error) {
-      URL.revokeObjectURL(this.url);
+      URL.revokeObjectURL(url);
       throw error;
     }
+    super(canvas);
     // Nothing past this point may throw before the transfer: a transferred canvas
-    // cannot be handed back to the main-thread engine.
-    this.canvas = canvas;
+    // cannot be handed back to the main-thread engine. A worker that fails after it is
+    // asks for a replacement canvas through onFail instead.
+    this.url = url;
+    this.worker = worker;
     this.world = { koi: [] };
     this.options = { fish: options.fish, young: options.young, palette: options.palette };
-    this.disposed = false;
-    this.visible = true;
-    this.hidden = document.hidden;
+    this.onFail = options.onFail ?? null;
+    this.ready = false;
     this.mode = '';
     this.measureTimer = 0;
     this.pointerTimer = 0;
@@ -2213,12 +2265,16 @@ class WorkerPond {
       if (m.type === 'stats') {
         this.world.koi = m.koi;
         this.options = m.options;
+      } else if (m.type === 'ready') {
+        this.ready = true;
+      } else if (m.type === 'fatal') {
+        this.fail(m.message);
       } else if (m.type === 'error' && !this.faulted) {
         this.faulted = true;
         console.error('[koi-pond] worker frame failed:', m.message);
       }
     };
-    this.worker.onerror = (event) => console.error('[koi-pond] worker failed:', event.message);
+    this.worker.onerror = (event) => this.fail(event.message);
 
     const offscreen = canvas.transferControlToOffscreen();
     this.worker.postMessage({
@@ -2228,30 +2284,12 @@ class WorkerPond {
       maxCells: options.maxCells ?? 26000,
       isLight: this.readIsLight(),
     }, [offscreen]);
-
-    this.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-    this.reducedTransparency = window.matchMedia('(prefers-reduced-transparency: reduce)');
-    this.resizeObserver = new ResizeObserver(() => this.resize());
-    this.intersectionObserver = new IntersectionObserver(([entry]) => {
-      this.visible = entry.isIntersecting;
-      this.schedule();
-    });
-    this.resizeObserver.observe(canvas);
-    this.intersectionObserver.observe(canvas);
-    this.reducedMotion.addEventListener('change', this.schedule);
-    this.reducedTransparency.addEventListener('change', this.schedule);
-    window.addEventListener('pointermove', this.onPointerMove, { passive: true });
-    window.addEventListener('click', this.onClick);
-    document.addEventListener('scroll', this.onAnyScroll, { capture: true, passive: true });
-    document.documentElement.addEventListener('pointerleave', this.onPointerLeave);
-    window.addEventListener('blur', this.onPointerLeave);
-    document.addEventListener('visibilitychange', this.onVisibilityChange);
-    this.resize();
-    this.schedule();
+    this.attach();
   }
 
-  readIsLight() {
-    return !document.body.hasAttribute('data-ds-dark-theme');
+  fail(message) {
+    console.error('[koi-pond] worker failed:', message);
+    if (!this.ready && !this.disposed) this.onFail?.();
   }
 
   setTheme(isLight) {
@@ -2259,8 +2297,9 @@ class WorkerPond {
   }
 
   setOptions(next = {}) {
+    this.options = { ...this.options, ...next };
     this.worker.postMessage({ type: 'options', next });
-    return { ...this.options, ...next };
+    return this.options;
   }
 
   getOptions() {
@@ -2268,7 +2307,7 @@ class WorkerPond {
   }
 
   resize() {
-    const rect = this.canvas.getBoundingClientRect();
+    const rect = this.measureCanvas();
     if (rect.width < 1 || rect.height < 1) return;
     this.worker.postMessage({ type: 'resize', width: rect.width, height: rect.height, dpr: Math.min(window.devicePixelRatio || 1, 2) });
     this.measure();
@@ -2286,40 +2325,13 @@ class WorkerPond {
     if (mode === 'run' || mode === 'still') this.measure();
   };
 
-  rectsFor(selectors) {
-    const origin = this.canvas.getBoundingClientRect();
-    return selectors.flatMap((selector) => Array.from(document.querySelectorAll(selector)))
-      .map((el) => el.getBoundingClientRect())
-      .filter((b) => b.width > 0 && b.height > 0)
-      .map((b) => ({ left: b.left - origin.left, top: b.top - origin.top, right: b.right - origin.left, bottom: b.bottom - origin.top }));
-  }
-
   measure() {
     if (this.disposed) return;
-    const own = mergeNearby(this.rectsFor([AVOID_TARGETS]));
-    const opaque = mergeNearby(this.rectsFor(OPAQUE_SELECTORS));
-    this.worker.postMessage({
-      type: 'boxes',
-      avoid: [...own, ...opaque],
-      groups: [
-        { boxes: own, floor: 0.15 },
-        { boxes: mergeNearby(this.rectsFor(TEXT_SELECTORS)), floor: TEXT_FLOOR },
-        { boxes: mergeNearby(this.rectsFor(CARD_SELECTORS)), floor: CARD_FLOOR },
-        { boxes: this.rectsFor(PANEL_SELECTORS), floor: CARD_FLOOR },
-      ],
-    });
-  }
-
-  toLocal(e) {
-    const rect = this.canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    return { x, y, inside: x >= 0 && y >= 0 && x <= rect.width && y <= rect.height };
+    this.worker.postMessage({ type: 'boxes', ...this.contentBoxes() });
   }
 
   // A 1000 Hz mouse would post a thousand messages a second; one per 8 ms is plenty.
-  onPointerMove = (e) => {
-    const { x, y, inside } = this.toLocal(e);
+  pointerMoved({ x, y, inside }, e) {
     this.pendingPointer = { type: 'pointer', x, y, t: e.timeStamp, active: inside && e.pointerType !== 'touch' };
     if (this.pointerTimer) return;
     this.pointerTimer = setTimeout(() => {
@@ -2327,46 +2339,27 @@ class WorkerPond {
       if (this.pendingPointer && !this.disposed) this.worker.postMessage(this.pendingPointer);
       this.pendingPointer = null;
     }, 8);
-  };
+  }
 
-  onClick = (e) => {
-    if (this.reducedMotion.matches || this.reducedTransparency.matches) return;
-    if (e.composedPath().some((n) => n instanceof Element && n.matches(INTERACTIVE))) return;
-    if (window.getSelection()?.toString()) return;
-    const { x, y, inside } = this.toLocal(e);
-    if (inside) this.worker.postMessage({ type: 'feed', x, y });
-  };
+  feed(x, y) {
+    this.worker.postMessage({ type: 'feed', x, y });
+  }
 
-  onAnyScroll = () => {
+  scrolled() {
     const now = performance.now();
     if (now - this.lastScrollPost < 50) return;
     this.lastScrollPost = now;
     this.worker.postMessage({ type: 'scroll', settle: SCROLL_SETTLE_MS });
-  };
+  }
 
-  onPointerLeave = () => {
+  pointerLeft() {
     this.worker.postMessage({ type: 'leave' });
-  };
-
-  onVisibilityChange = () => {
-    this.hidden = document.hidden;
-    this.schedule();
-  };
+  }
 
   destroy() {
-    this.disposed = true;
+    super.destroy();
     clearInterval(this.measureTimer);
     clearTimeout(this.pointerTimer);
-    this.resizeObserver.disconnect();
-    this.intersectionObserver.disconnect();
-    this.reducedMotion.removeEventListener('change', this.schedule);
-    this.reducedTransparency.removeEventListener('change', this.schedule);
-    window.removeEventListener('pointermove', this.onPointerMove);
-    window.removeEventListener('click', this.onClick);
-    document.removeEventListener('scroll', this.onAnyScroll, { capture: true });
-    document.documentElement.removeEventListener('pointerleave', this.onPointerLeave);
-    window.removeEventListener('blur', this.onPointerLeave);
-    document.removeEventListener('visibilitychange', this.onVisibilityChange);
     this.worker.terminate();
     URL.revokeObjectURL(this.url);
   }
@@ -2637,25 +2630,46 @@ function mountPond(settings) {
     const stale = document.querySelector('#cngtn-pond-canvas');
     if (stale !== null) stale.remove();
 
-    const canvas = document.createElement('canvas');
-    canvas.id = 'cngtn-pond-canvas';
-    canvas.setAttribute('aria-hidden', 'true');
-    // The canvas never takes input, so a click anywhere still reaches the
-    // control under it.
-    canvas.style.pointerEvents = 'none';
-    document.body.insertBefore(canvas, document.body.firstChild);
-
+    const makeCanvas = () => {
+      const element = document.createElement('canvas');
+      element.id = 'cngtn-pond-canvas';
+      element.setAttribute('aria-hidden', 'true');
+      // The canvas never takes input, so a click anywhere still reaches the
+      // control under it.
+      element.style.pointerEvents = 'none';
+      document.body.insertBefore(element, document.body.firstChild);
+      return element;
+    };
+    let canvas = makeCanvas();
     let engine = null;
+    const options = {
+      // The shell has less open water than a full-screen page: fewer fish, and
+      // a cap on the grid so a very large window stays cheap.
+      budget: 0.7,
+      maxCells: 26000,
+      fish: settings.fish,
+      young: settings.young,
+      palette: settings.palette,
+    };
+    // A worker can fail after it has taken the canvas, which cannot be handed back, so the
+    // main-thread engine starts on a new one with whatever the school is now.
+    const fallBack = () => {
+      const current = engine.getOptions();
+      engine.destroy();
+      canvas.remove();
+      canvas = makeCanvas();
+      try {
+        engine = new PondEngine(canvas, { ...options, ...current });
+        activeEngine = engine;
+        diag.engine = 'main';
+      } catch (error) {
+        canvas.remove();
+        activeEngine = null;
+        console.error('[koi-pond] engine unavailable:', error && error.message);
+      }
+    };
     try {
-      engine = createPondEngine(canvas, {
-        // The shell has less open water than a full-screen page: fewer fish, and
-        // a cap on the grid so a very large window stays cheap.
-        budget: 0.7,
-        maxCells: 26000,
-        fish: settings.fish,
-        young: settings.young,
-        palette: settings.palette,
-      });
+      engine = createPondEngine(canvas, { ...options, onFail: fallBack });
       activeEngine = engine;
       diag.engine = engine instanceof WorkerPond ? 'worker' : 'main';
     } catch (error) {
