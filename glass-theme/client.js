@@ -983,27 +983,9 @@ html body [class*='_7rgC5q_item']::after {
 html body :is(.MKE-pW_overlay, .kBGKfW_onboardingOverlay) {
   background: var(--glass-base-solid);
 }
-/* Below the card, text would turn sharp again in the gap. This strip dissolves it. It must not
-   repeat what went wrong with a full layer here: its top edge is behind the card, its sides are
-   the card's sides so nothing runs through the gutters, and it stays 1px inside the sheet so the
-   sheet's border is not smeared. Its corners are the sheet's, moved in by the gap, so they stay
-   inside the sheet. */
-html body [class*='an3WzG_root'][data-phase='active'] [data-composer-seat]::before {
-  content: '';
-  position: absolute;
-  left: var(--glass-seat-gap);
-  right: calc(var(--glass-seat-gap) - var(--dsh-scrollbar-width, 6px));
-  bottom: 1px;
-  height: var(--dsw-radius-panel, 22px);
-  z-index: -1;
-  pointer-events: none;
-  border-radius: 0 0 calc(var(--dsw-radius-panel, 22px) - 1px) calc(var(--dsw-radius-panel, 22px) - 1px);
-  /* Brightness or saturation would tint the empty gutters into a band. The sheet's own colour
-     does not: it only thins the smear that blurred text leaves. */
-  background: color-mix(in srgb, var(--glass-base-solid, transparent) 55%, transparent);
-  -webkit-backdrop-filter: blur(26px);
-  backdrop-filter: blur(26px);
-}
+/* Nothing covers the gap below the card: text passing through it stays sharp, as content does
+   under the system's own floating bars. A blurred strip there read as a second layer of glass
+   outside the first. */
 
 /* Declared here, not on body: the highlight follows --lg-x set on this element. */
 html body [data-composer-card] {
@@ -1034,6 +1016,14 @@ html[data-lg-refraction="lens"] body [data-lg-lens][data-lg-surface='composer'] 
     radial-gradient(320px circle at var(--lg-x, 50%) var(--lg-y, 0px), var(--lg-glint), transparent 70%),
     var(--lg-composer);
   --lg-surface-fill: var(--lg-composer-fill);
+}
+/* The composer's glass reaches 9px past the card into a 10px gap, and a press widens the card
+   a little: past the seat's edge that would count as overflow, the conversation would grow a
+   horizontal scrollbar and everything would lift 6px. What lies past the seat is the clear part
+   of the glass, so clipping it sideways changes nothing visible. clip, not hidden: only the
+   horizontal axis is cut, and the seat does not become a scroll container. */
+html[data-lg-refraction="lens"] body [data-composer-seat] {
+  overflow-x: clip;
 }
 html[data-lg-refraction="lens"] body [data-composer-card][data-lg-lens]::before {
   background: none;
@@ -1173,11 +1163,6 @@ html body .V4vHZW_toBottom {
     --lg-glint: transparent;
     --lg-glint-idle: transparent;
     --dsw-menu-backdrop-filter: none !important;
-  }
-}
-@media (prefers-reduced-transparency: reduce) {
-  html body [class*='an3WzG_root'][data-phase='active'] [data-composer-seat]::before {
-    display: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1924,7 +1909,9 @@ html[data-lg-motion="off"] body :is([data-menu-material], [role='dialog'], [clas
           surface.style.setProperty('scale', entry.kind.press === 'swell'
             ? `${(1 + 0.03 * Math.min(m, 1.2) * p).toFixed(4)}`
             : `${(1 + 0.005 * m * p).toFixed(4)} ${(1 - 0.012 * m * p).toFixed(4)}`);
-        } else if (surface.style.getPropertyValue('scale')) {
+          entry.pressing = true;
+        } else if (entry.pressing) {
+          entry.pressing = false;
           surface.style.removeProperty('--lg-sheen-boost');
           surface.style.removeProperty('scale');
         }
