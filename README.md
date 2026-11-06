@@ -41,7 +41,7 @@ github:Tal-Shin/dsh-glass#path:/turn-resume
 
 ## 兼容性
 
-- v0.2.0 在 DSH 0.2.2-rc.1（Windows 11、Electron 44）上测试过，更早的 DSH 没有重新测试，macOS、Linux 未测试。
+- v0.3.0 在 DSH 0.2.2-rc.1（Windows 11、Electron 44）上测试过，更早的 DSH 没有重新测试，macOS、Linux 未测试。
 - 部分样式依赖外壳内部的类名，类名变了时对应的地方会退回 DSH 自带的实色；`workbench` 用到了未公开的布局接口。DSH 升级后可能需要适配。
 - 折射透镜依赖 Chromium 的 `backdrop-filter` 支持 SVG 滤镜，桌面版可用，默认关闭。
 - 长会话的轨迹页滚动偏慢，主要来自 DSH 自身，开启外观后会再慢一些。
