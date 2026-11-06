@@ -47,7 +47,7 @@ github:Tal-Shin/dsh-glass#path:/turn-resume
 
 ## 兼容性
 
-- 在 DSH 0.2.1-rc.5（Windows 11、Electron 44）上开发和测试，macOS、Linux 未测试。
+- 在 DSH 0.2.1-rc.5 和 0.2.2-rc.1（Windows 11、Electron 44）上测试过，macOS、Linux 未测试。
 - 部分样式依赖外壳内部的类名，`workbench` 用到了未公开的布局接口，DSH 升级后可能需要适配。
 - `glass-theme` 与其他主题插件同时启用会互相覆盖，只保留一个主题。
 
