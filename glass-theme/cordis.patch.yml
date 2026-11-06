@@ -1,0 +1,4 @@
+# glass-theme bundle patch: one Client row with the token layer and stylesheet.
+- insert:
+    - id: glass-theme
+      name: '@tal-shin/dsh-glass-theme'

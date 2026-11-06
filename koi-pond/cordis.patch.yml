@@ -1,0 +1,9 @@
+# koi-pond bundle patch: one row carrying the pond's three settings.
+# Turn it off from the Plugins page; the theme keeps working without it.
+- insert:
+    - id: koi-pond
+      name: '@tal-shin/dsh-koi-pond'
+      config:
+        fish: 6
+        palette: mixed
+        young: true

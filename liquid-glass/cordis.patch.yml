@@ -1,0 +1,7 @@
+# liquid-glass bundle patch.
+#
+# One Client-only row: token layer + stylesheet + one pointer listener. Removing
+# the row returns every surface to the theme's own material.
+- insert:
+    - id: liquid-glass
+      name: '@tal-shin/dsh-liquid-glass'

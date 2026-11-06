@@ -1,0 +1,4 @@
+# workbench bundle patch: one Client row that replaces the right panel's start page.
+- insert:
+    - id: workbench
+      name: '@tal-shin/dsh-workbench'

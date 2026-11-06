@@ -1,0 +1,47 @@
+{
+  "name": "@tal-shin/dsh-turn-alert",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Desktop notification when a turn finishes while the window is out of focus.",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "engines": {
+      "dsh": ">=0.2.1-rc.5"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-chat"
+      ]
+    },
+    "displayName": "Turn Alert",
+    "description": "Desktop notification when a turn finishes while the window is out of focus."
+  },
+  "icon": "./icon.svg",
+  "license": "MIT",
+  "author": "Tal-Shin",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Tal-Shin/dsh-glass.git",
+    "directory": "turn-alert"
+  },
+  "homepage": "https://github.com/Tal-Shin/dsh-glass/tree/main/turn-alert#readme"
+}

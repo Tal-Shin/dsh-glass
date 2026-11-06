@@ -1,0 +1,8 @@
+# cupertino bundle patch.
+#
+# One Client-only row: a stylesheet of custom-property overrides and a handful of
+# structural rules. No tokens service, so it cannot lose a stacking race with the
+# theme's own token layer.
+- insert:
+    - id: cupertino
+      name: '@tal-shin/dsh-cupertino'

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Turn Alert">
+  <rect x="5.5" y="5.5" width="53" height="53" rx="11" fill="#f5f4f1" stroke="#262523" stroke-opacity="0.28" stroke-width="1.5"/>
+  <path d="M32 17c-5 0-8 3.6-8 8.4v6.2l-3 4.4h22l-3-4.4v-6.2c0-4.8-3-8.4-8-8.4z" fill="none" stroke="#262523" stroke-width="2.2" stroke-linejoin="round"/>
+  <path d="M28.5 39.5a3.5 3.5 0 0 0 7 0" fill="none" stroke="#cc3e1c" stroke-width="2.4" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,47 @@
+{
+  "name": "@tal-shin/dsh-pond-polish",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Readability and interaction polish over the active theme.",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "engines": {
+      "dsh": ">=0.2.1-rc.5"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-theme"
+      ]
+    },
+    "displayName": "Pond Polish",
+    "description": "Readability and interaction polish."
+  },
+  "icon": "./icon.svg",
+  "license": "MIT",
+  "author": "Tal-Shin",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Tal-Shin/dsh-glass.git",
+    "directory": "pond-polish"
+  },
+  "homepage": "https://github.com/Tal-Shin/dsh-glass/tree/main/pond-polish#readme"
+}

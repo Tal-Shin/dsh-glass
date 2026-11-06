@@ -1,0 +1,8 @@
+# turn-alert bundle patch.
+#
+# One Client-only row: listens for completed turns and raises a desktop
+# notification only while the window is out of focus. Removing the row removes
+# the listener with it.
+- insert:
+    - id: turn-alert
+      name: '@tal-shin/dsh-turn-alert'

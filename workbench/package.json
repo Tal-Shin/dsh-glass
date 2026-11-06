@@ -1,0 +1,47 @@
+{
+  "name": "@tal-shin/dsh-workbench",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A live overview of the session on the right panel's start page.",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "engines": {
+      "dsh": ">=0.2.1-rc.5"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
+      ]
+    },
+    "displayName": "Workbench",
+    "description": "A live overview on the right panel's start page."
+  },
+  "icon": "./icon.svg",
+  "license": "MIT",
+  "author": "Tal-Shin",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Tal-Shin/dsh-glass.git",
+    "directory": "workbench"
+  },
+  "homepage": "https://github.com/Tal-Shin/dsh-glass/tree/main/workbench#readme"
+}

@@ -1,0 +1,7 @@
+# turn-resume bundle patch.
+#
+# One Client-only row: an additive cell in conversation.composer.dock. Nothing is
+# replaced, so removing the row leaves the composer exactly as the shell built it.
+- insert:
+    - id: turn-resume
+      name: '@tal-shin/dsh-turn-resume'
