@@ -229,7 +229,8 @@ body [data-conversation-scroll],
 body [data-conversation-region="chat"] {
   background-color: transparent;
 }
-body div:has(> [data-slot="main"]) {
+body div:has(> [data-slot="main"]),
+body [data-slot="root"] > div > div:has([data-slot="main"]) {
   background-color: transparent !important;
 }
 html body [data-slot="root"] > div > div:nth-child(1),
@@ -437,7 +438,8 @@ body :focus-visible {
   body [data-slot="root"] > div {
     background-color: var(--dsw-alias-bg-base) !important;
   }
-  body div:has(> [data-slot="main"]) {
+  body div:has(> [data-slot="main"]),
+body [data-slot="root"] > div > div:has([data-slot="main"]) {
     background-color: var(--dsw-alias-bg-base) !important;
   }
   html body [data-slot="root"] > div > div:nth-child(1),
@@ -488,13 +490,13 @@ body :focus-visible {
   }
 }
 /* Three floating cards share one gutter: sidebar, centre, right panel. */
-html body [data-slot="root"] > div > div:has(> [data-slot="main"]) {
+html body [data-slot="root"] > div > div:has([data-slot="main"]) {
   box-sizing: border-box;
   padding: 10px 0 12px;
   overflow: visible;
   border-radius: 0;
 }
-html body [data-slot="root"] > div:is([data-rightbar-collapsed="true"], :not(:has([data-sidebar-right-open]))) > div:has(> [data-slot="main"]) {
+html body [data-slot="root"] > div:is([data-rightbar-collapsed="true"], :not(:has([data-sidebar-right-open]))) > div:has([data-slot="main"]) {
   padding-right: 18px;
 }
 html body [data-slot="main"] > *,

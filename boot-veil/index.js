@@ -38,7 +38,10 @@ const STYLE = `
     color: var(--boot-ink);
     font: 400 12px/18px -glass-system, BlinkMacSystemFont, "Inter", "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "Noto Sans SC", "Microsoft YaHei UI", sans-serif;
     animation: dsh-boot-in 220ms ease backwards;
-    transition: opacity 320ms ease, visibility 0s linear 320ms;
+    transition: opacity 320ms ease, visibility 0s linear 320ms, display 0s linear 320ms;
+    /* Lets display wait for the fade, so the hidden veil leaves the tree instead of
+       keeping its infinite loader running (and the compositor busy) for the whole session. */
+    transition-behavior: allow-discrete;
   }
   #dsh-boot[data-theme="dark"] {
     --boot-bg: #1c1c1e; --boot-ink: #f5f5f7; --boot-track: rgba(255, 255, 255, .14); --boot-hint: #98989d;
@@ -54,12 +57,12 @@ const STYLE = `
     display: flex; flex-direction: column; align-items: center; gap: 44px;
     transition: transform 320ms cubic-bezier(.22, 1, .36, 1);
   }
-  #dsh-boot .dsh-boot-dark { display: none; }
-  #dsh-boot[data-theme="dark"] .dsh-boot-light { display: none; }
-  #dsh-boot[data-theme="dark"] .dsh-boot-dark { display: block; }
+  #dsh-boot .dsh-boot-mark.dsh-boot-dark { display: none; }
+  #dsh-boot[data-theme="dark"] .dsh-boot-mark.dsh-boot-light { display: none; }
+  #dsh-boot[data-theme="dark"] .dsh-boot-mark.dsh-boot-dark { display: block; }
   @media (prefers-color-scheme: dark) {
-    #dsh-boot[data-theme="system"] .dsh-boot-light { display: none; }
-    #dsh-boot[data-theme="system"] .dsh-boot-dark { display: block; }
+    #dsh-boot[data-theme="system"] .dsh-boot-mark.dsh-boot-light { display: none; }
+    #dsh-boot[data-theme="system"] .dsh-boot-mark.dsh-boot-dark { display: block; }
   }
   #dsh-boot .dsh-boot-mark {
     width: 76px; height: auto; display: block;
@@ -95,7 +98,7 @@ const STYLE = `
     #dsh-boot .dsh-boot-track i { animation: none; inset: 0; width: 100%; opacity: .4; }
   }
   /* The shell's spinner is gone: it mounted, or it has a failure to show. */
-  body:not(:has([data-dsh-boot-spinner])) #dsh-boot { opacity: 0; visibility: hidden; pointer-events: none; }
+  body:not(:has([data-dsh-boot-spinner])) #dsh-boot { opacity: 0; visibility: hidden; pointer-events: none; display: none; }
   body:not(:has([data-dsh-boot-spinner])) #dsh-boot .dsh-boot-stack { transform: scale(1.04); }
 `
 

@@ -74,6 +74,10 @@ body {
 }
 [data-conversation-tabs] > [role='tab'] {
   flex-shrink: 0;
+  box-sizing: border-box;
+  /* DSH 0.2.2 widens each tab's hit area with negative margins; inside the segment
+     the padding is the hit area, so the margins would only push tabs out of it. */
+  margin: 0 !important;
   min-height: 28px !important;
   padding: 3px 14px !important;
   border-radius: 9px;

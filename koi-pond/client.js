@@ -20,6 +20,11 @@ window.__ModuleLoader__.load({
 // The theme sets no font family, so no webfont is inlined.
 
 
+/**
+ * The simulation and the rasteriser, with no DOM access. Wrapped in a function so
+ * the pond worker can be started from this exact source (see WorkerPond).
+ */
+function pondLibrary() {
 /* ── world ─────────────────────────────────────────────────────────────── */
 const __m_world = (() => {
 /**
@@ -1627,6 +1632,9 @@ class KoiRenderer {
 return { koiMarkings, paletteTones, KoiRenderer };
 })();
 const { koiMarkings, paletteTones, KoiRenderer } = __m_renderer;
+return { TAU, KOI_NODES, RIPPLE_SPEED, clamp, smoothstep, angleDiff, hash3, ACCENTS, ACCENT_PRESETS, PALETTE_PRESETS, VARIETIES, PELLET_LIFE, BITE_LIFE, PELLET_SINK, World, rippleLife, FLAG_BODY, FLAG_FIN, FLAG_EYE, FLAG_DORSAL, FLAG_BARBEL, bodyHalfWidth, classify, koiMarkings, paletteTones, KoiRenderer };
+}
+const { TAU, KOI_NODES, RIPPLE_SPEED, clamp, smoothstep, angleDiff, hash3, ACCENTS, ACCENT_PRESETS, PALETTE_PRESETS, VARIETIES, PELLET_LIFE, BITE_LIFE, PELLET_SINK, World, rippleLife, FLAG_BODY, FLAG_FIN, FLAG_EYE, FLAG_DORSAL, FLAG_BARBEL, bodyHalfWidth, classify, koiMarkings, paletteTones, KoiRenderer } = pondLibrary();
 
 /* ── engine ─────────────────────────────────────────────────────────────── */
 const __m_engine = (() => {
@@ -2018,9 +2026,363 @@ class PondEngine {
     return clamp(steps, 0, Infinity);
   }
 }
-return { PondEngine };
+return { PondEngine, mergeNearby, MEASURE_MS, SCROLL_SETTLE_MS, INTERACTIVE, AVOID_TARGETS, OPAQUE_SELECTORS, TEXT_SELECTORS, CARD_SELECTORS, PANEL_SELECTORS, TEXT_FLOOR, CARD_FLOOR };
 })();
 const { PondEngine } = __m_engine;
+
+/* ── worker ─────────────────────────────────────────────────────────────── */
+/**
+ * The pond drawn off the main thread.
+ *
+ * Rasterising the school costs about 5 ms a frame. On a 240 Hz display a frame
+ * is 4.2 ms, so on the main thread every paint pushed scrolling and typing past
+ * its deadline. Here the world and the renderer live in a dedicated worker that
+ * draws into an OffscreenCanvas; the main thread only measures the content boxes
+ * every 250 ms and forwards input, which is what needs the DOM.
+ *
+ * `workerMain` runs inside the worker, so it must not touch anything outside
+ * its own body: it receives the library and talks only through messages.
+ */
+function workerMain(lib) {
+  const { World, KoiRenderer } = lib;
+  const STEP = 1 / 60;
+  const MAX_STEPS = 4;
+  const RENDER_MS = 1000 / 60;
+  const SCROLL_RENDER_MS = 1000 / 24;
+  const tick = typeof self.requestAnimationFrame === 'function'
+    ? (fn) => self.requestAnimationFrame(fn)
+    : (fn) => setTimeout(() => fn(performance.now()), 16);
+  let world = null;
+  let renderer = null;
+  let mode = 'off';
+  let scheduled = false;
+  let last = 0;
+  let acc = 0;
+  let pending = 0;
+  let lastRender = 0;
+  let scrollingUntil = 0;
+  let lastPointer = 0;
+  let reported = '';
+  let faults = 0;
+
+  const report = (force) => {
+    if (!world) return;
+    const koi = world.koi.map((k) => ({ id: k.id, variety: k.variety, accent: k.accent }));
+    const message = { type: 'stats', koi, options: world.getOptions() };
+    const key = JSON.stringify(message);
+    if (!force && key === reported) return;
+    reported = key;
+    self.postMessage(message);
+  };
+  const still = () => {
+    if (world.time < 4) for (let i = 0; i < 240; i++) world.step(STEP);
+    renderer.render(world, STEP);
+    report(false);
+  };
+  const frame = (now) => {
+    scheduled = false;
+    if (mode !== 'run' || !world) return;
+    try {
+      const dt = Math.min(0.1, (now - last) / 1000);
+      last = now;
+      acc += dt;
+      let steps = 0;
+      while (acc >= STEP && steps < MAX_STEPS) { world.step(STEP); acc -= STEP; steps++; }
+      if (steps === MAX_STEPS) acc = 0;
+      pending += dt;
+      const budget = now < scrollingUntil ? SCROLL_RENDER_MS : RENDER_MS;
+      if (now - lastRender >= budget - 1) {
+        lastRender = now;
+        renderer.render(world, pending);
+        pending = 0;
+      }
+      faults = 0;
+    } catch (error) {
+      faults += 1;
+      if (faults === 1) self.postMessage({ type: 'error', message: String(error && (error.stack || error.message)) });
+      if (faults > 240) return;
+    }
+    scheduled = true;
+    tick(frame);
+  };
+  const start = () => {
+    if (scheduled) return;
+    scheduled = true;
+    last = performance.now();
+    tick(frame);
+  };
+  setInterval(() => report(false), 500);
+
+  self.onmessage = (event) => {
+    const m = event.data;
+    try {
+      switch (m.type) {
+        case 'init':
+          world = new World(m.options);
+          renderer = new KoiRenderer(m.canvas, { maxCells: m.maxCells, isLight: m.isLight });
+          renderer.setTheme(m.isLight);
+          break;
+        case 'resize':
+          renderer.resize(m.width, m.height, m.dpr);
+          world.resize(m.width, m.height);
+          if (mode === 'still') still();
+          report(false);
+          break;
+        case 'boxes':
+          world.avoid = m.avoid;
+          renderer.setDimBoxes(m.groups);
+          if (mode === 'still') still();
+          break;
+        case 'theme':
+          renderer.setTheme(m.isLight);
+          if (mode === 'still') still();
+          break;
+        case 'mode':
+          mode = m.mode;
+          if (mode === 'run') start();
+          else if (mode === 'still') still();
+          else if (mode === 'clear') renderer.clear();
+          break;
+        case 'pointer': {
+          const p = world.pointer;
+          const elapsed = Math.max(1, m.t - lastPointer) / 1000;
+          const speed = Math.hypot(m.x - p.x, m.y - p.y) / elapsed;
+          p.speed += (Math.min(speed, 5000) - p.speed) * 0.5;
+          lastPointer = m.t;
+          p.x = m.x;
+          p.y = m.y;
+          p.active = m.active;
+          break;
+        }
+        case 'leave':
+          world.pointer.active = false;
+          world.pointer.speed = 0;
+          break;
+        case 'feed':
+          world.feed(m.x, m.y);
+          report(false);
+          break;
+        case 'scroll':
+          scrollingUntil = performance.now() + m.settle;
+          break;
+        case 'options':
+          world.setOptions(m.next);
+          if (renderer.markingCache) renderer.markingCache.clear();
+          if (mode === 'still') still();
+          report(true);
+          break;
+      }
+    } catch (error) {
+      self.postMessage({ type: 'error', message: String(error && (error.stack || error.message)) });
+    }
+  };
+}
+
+const {
+  mergeNearby, MEASURE_MS, SCROLL_SETTLE_MS, INTERACTIVE, AVOID_TARGETS, OPAQUE_SELECTORS,
+  TEXT_SELECTORS, CARD_SELECTORS, PANEL_SELECTORS, TEXT_FLOOR, CARD_FLOOR,
+} = __m_engine;
+
+/** The main-thread half: DOM, input and lifecycle, with the same face as PondEngine. */
+class WorkerPond {
+  constructor(canvas, options = {}) {
+    const source = `(${workerMain.toString()})((${pondLibrary.toString()})());`;
+    this.url = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
+    try {
+      this.worker = new Worker(this.url, { name: 'koi-pond' });
+    } catch (error) {
+      URL.revokeObjectURL(this.url);
+      throw error;
+    }
+    // Nothing past this point may throw before the transfer: a transferred canvas
+    // cannot be handed back to the main-thread engine.
+    this.canvas = canvas;
+    this.world = { koi: [] };
+    this.options = { fish: options.fish, young: options.young, palette: options.palette };
+    this.disposed = false;
+    this.visible = true;
+    this.hidden = document.hidden;
+    this.mode = '';
+    this.measureTimer = 0;
+    this.pointerTimer = 0;
+    this.pendingPointer = null;
+    this.lastScrollPost = 0;
+    this.faulted = false;
+    this.worker.onmessage = (event) => {
+      const m = event.data;
+      if (m.type === 'stats') {
+        this.world.koi = m.koi;
+        this.options = m.options;
+      } else if (m.type === 'error' && !this.faulted) {
+        this.faulted = true;
+        console.error('[koi-pond] worker frame failed:', m.message);
+      }
+    };
+    this.worker.onerror = (event) => console.error('[koi-pond] worker failed:', event.message);
+
+    const offscreen = canvas.transferControlToOffscreen();
+    this.worker.postMessage({
+      type: 'init',
+      canvas: offscreen,
+      options: { budget: options.budget ?? 0.7, fish: options.fish, young: options.young, palette: options.palette },
+      maxCells: options.maxCells ?? 26000,
+      isLight: this.readIsLight(),
+    }, [offscreen]);
+
+    this.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    this.reducedTransparency = window.matchMedia('(prefers-reduced-transparency: reduce)');
+    this.resizeObserver = new ResizeObserver(() => this.resize());
+    this.intersectionObserver = new IntersectionObserver(([entry]) => {
+      this.visible = entry.isIntersecting;
+      this.schedule();
+    });
+    this.resizeObserver.observe(canvas);
+    this.intersectionObserver.observe(canvas);
+    this.reducedMotion.addEventListener('change', this.schedule);
+    this.reducedTransparency.addEventListener('change', this.schedule);
+    window.addEventListener('pointermove', this.onPointerMove, { passive: true });
+    window.addEventListener('click', this.onClick);
+    document.addEventListener('scroll', this.onAnyScroll, { capture: true, passive: true });
+    document.documentElement.addEventListener('pointerleave', this.onPointerLeave);
+    window.addEventListener('blur', this.onPointerLeave);
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
+    this.resize();
+    this.schedule();
+  }
+
+  readIsLight() {
+    return !document.body.hasAttribute('data-ds-dark-theme');
+  }
+
+  setTheme(isLight) {
+    this.worker.postMessage({ type: 'theme', isLight });
+  }
+
+  setOptions(next = {}) {
+    this.worker.postMessage({ type: 'options', next });
+    return { ...this.options, ...next };
+  }
+
+  getOptions() {
+    return this.options;
+  }
+
+  resize() {
+    const rect = this.canvas.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1) return;
+    this.worker.postMessage({ type: 'resize', width: rect.width, height: rect.height, dpr: Math.min(window.devicePixelRatio || 1, 2) });
+    this.measure();
+  }
+
+  schedule = () => {
+    const mode = this.disposed || !this.visible || this.hidden
+      ? 'off'
+      : this.reducedTransparency.matches ? 'clear' : this.reducedMotion.matches ? 'still' : 'run';
+    if (mode === this.mode) return;
+    this.mode = mode;
+    this.worker.postMessage({ type: 'mode', mode });
+    clearInterval(this.measureTimer);
+    this.measureTimer = mode === 'run' ? setInterval(() => this.measure(), MEASURE_MS) : 0;
+    if (mode === 'run' || mode === 'still') this.measure();
+  };
+
+  rectsFor(selectors) {
+    const origin = this.canvas.getBoundingClientRect();
+    return selectors.flatMap((selector) => Array.from(document.querySelectorAll(selector)))
+      .map((el) => el.getBoundingClientRect())
+      .filter((b) => b.width > 0 && b.height > 0)
+      .map((b) => ({ left: b.left - origin.left, top: b.top - origin.top, right: b.right - origin.left, bottom: b.bottom - origin.top }));
+  }
+
+  measure() {
+    if (this.disposed) return;
+    const own = mergeNearby(this.rectsFor([AVOID_TARGETS]));
+    const opaque = mergeNearby(this.rectsFor(OPAQUE_SELECTORS));
+    this.worker.postMessage({
+      type: 'boxes',
+      avoid: [...own, ...opaque],
+      groups: [
+        { boxes: own, floor: 0.15 },
+        { boxes: mergeNearby(this.rectsFor(TEXT_SELECTORS)), floor: TEXT_FLOOR },
+        { boxes: mergeNearby(this.rectsFor(CARD_SELECTORS)), floor: CARD_FLOOR },
+        { boxes: this.rectsFor(PANEL_SELECTORS), floor: CARD_FLOOR },
+      ],
+    });
+  }
+
+  toLocal(e) {
+    const rect = this.canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    return { x, y, inside: x >= 0 && y >= 0 && x <= rect.width && y <= rect.height };
+  }
+
+  // A 1000 Hz mouse would post a thousand messages a second; one per 8 ms is plenty.
+  onPointerMove = (e) => {
+    const { x, y, inside } = this.toLocal(e);
+    this.pendingPointer = { type: 'pointer', x, y, t: e.timeStamp, active: inside && e.pointerType !== 'touch' };
+    if (this.pointerTimer) return;
+    this.pointerTimer = setTimeout(() => {
+      this.pointerTimer = 0;
+      if (this.pendingPointer && !this.disposed) this.worker.postMessage(this.pendingPointer);
+      this.pendingPointer = null;
+    }, 8);
+  };
+
+  onClick = (e) => {
+    if (this.reducedMotion.matches || this.reducedTransparency.matches) return;
+    if (e.composedPath().some((n) => n instanceof Element && n.matches(INTERACTIVE))) return;
+    if (window.getSelection()?.toString()) return;
+    const { x, y, inside } = this.toLocal(e);
+    if (inside) this.worker.postMessage({ type: 'feed', x, y });
+  };
+
+  onAnyScroll = () => {
+    const now = performance.now();
+    if (now - this.lastScrollPost < 50) return;
+    this.lastScrollPost = now;
+    this.worker.postMessage({ type: 'scroll', settle: SCROLL_SETTLE_MS });
+  };
+
+  onPointerLeave = () => {
+    this.worker.postMessage({ type: 'leave' });
+  };
+
+  onVisibilityChange = () => {
+    this.hidden = document.hidden;
+    this.schedule();
+  };
+
+  destroy() {
+    this.disposed = true;
+    clearInterval(this.measureTimer);
+    clearTimeout(this.pointerTimer);
+    this.resizeObserver.disconnect();
+    this.intersectionObserver.disconnect();
+    this.reducedMotion.removeEventListener('change', this.schedule);
+    this.reducedTransparency.removeEventListener('change', this.schedule);
+    window.removeEventListener('pointermove', this.onPointerMove);
+    window.removeEventListener('click', this.onClick);
+    document.removeEventListener('scroll', this.onAnyScroll, { capture: true });
+    document.documentElement.removeEventListener('pointerleave', this.onPointerLeave);
+    window.removeEventListener('blur', this.onPointerLeave);
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    this.worker.terminate();
+    URL.revokeObjectURL(this.url);
+  }
+}
+
+/** Off the main thread when the browser allows it, otherwise the original engine. */
+function createPondEngine(canvas, options) {
+  if (typeof Worker === 'function' && typeof OffscreenCanvas === 'function' && typeof canvas.transferControlToOffscreen === 'function') {
+    try {
+      return new WorkerPond(canvas, options);
+    } catch (error) {
+      console.warn('[koi-pond] worker unavailable, drawing on the main thread:', error && error.message);
+    }
+  }
+  return new PondEngine(canvas, options);
+}
 
 /* ── styles ─────────────────────────────────────────────────────────────── */
 /**
@@ -2285,7 +2647,7 @@ function mountPond(settings) {
 
     let engine = null;
     try {
-      engine = new PondEngine(canvas, {
+      engine = createPondEngine(canvas, {
         // The shell has less open water than a full-screen page: fewer fish, and
         // a cap on the grid so a very large window stays cheap.
         budget: 0.7,
@@ -2295,6 +2657,7 @@ function mountPond(settings) {
         palette: settings.palette,
       });
       activeEngine = engine;
+      diag.engine = engine instanceof WorkerPond ? 'worker' : 'main';
     } catch (error) {
       canvas.remove();
       console.error('[koi-pond] engine unavailable:', error && error.message);

@@ -1,6 +1,6 @@
 {
   "name": "@tal-shin/dsh-liquid-glass",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Liquid-glass material for the floating chrome: menus, dialogs and the composer card.",
   "exports": {

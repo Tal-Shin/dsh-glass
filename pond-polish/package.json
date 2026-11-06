@@ -1,6 +1,6 @@
 {
   "name": "@tal-shin/dsh-pond-polish",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Readability and interaction polish over the active theme.",
   "exports": {

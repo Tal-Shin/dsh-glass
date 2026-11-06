@@ -1,6 +1,6 @@
 {
   "name": "@tal-shin/dsh-glass-theme",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Neutral greys, system blue and translucent floating panels for the DSH shell.",
   "exports": {

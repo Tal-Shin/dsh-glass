@@ -45,12 +45,12 @@ body[data-ds-dark-theme] {
 /* The centre column is a floating card that matches the side panels, except on the
    empty start page, where it clears so the water shows. Filters stay on a
    pseudo-element so fixed-position shell controls keep their viewport anchor. */
-html:root body div:has(> [data-slot="main"]) {
+html:root body [data-slot="root"] > div > div:has([data-slot="main"]) {
   position: relative;
   isolation: isolate;
   background: transparent !important;
 }
-html:root body div:has(> [data-slot="main"])::before {
+html:root body [data-slot="root"] > div > div:has([data-slot="main"])::before {
   content: '';
   position: absolute;
   inset: 10px 0 12px;
@@ -65,10 +65,10 @@ html:root body div:has(> [data-slot="main"])::before {
   box-shadow: inset 0 1px 0 var(--lg-rim), inset 1px 0 0 var(--lg-glint-idle), inset 0 -1px 0 var(--lg-edge), var(--lg-shadow);
   transition: opacity .32s ease, visibility 0s;
 }
-html:root body [data-slot="root"] > div:is([data-rightbar-collapsed="true"], :not(:has([data-sidebar-right-open]))) > div:has(> [data-slot="main"])::before {
+html:root body [data-slot="root"] > div:is([data-rightbar-collapsed="true"], :not(:has([data-sidebar-right-open]))) > div:has([data-slot="main"])::before {
   right: 18px;
 }
-html:root body div:has(> [data-slot="main"]):has([data-slot^="conversation.hero"])::before {
+html:root body [data-slot="root"] > div > div:has([data-slot="main"]):has([data-slot^="conversation.hero"])::before {
   opacity: 0;
   visibility: hidden;
   transition: opacity .32s ease, visibility 0s linear .32s;
@@ -173,7 +173,7 @@ html:root body [data-menu-material] {
 }
 @media (prefers-reduced-motion: reduce) {
   html:root body [data-composer-card],
-  html:root body div:has(> [data-slot="main"])::before { transition: none; }
+  html:root body [data-slot="root"] > div > div:has([data-slot="main"])::before { transition: none; }
   html:root body [data-composer-card]::before { background: var(--lg-composer); }
 }
 @media (forced-colors: active) {

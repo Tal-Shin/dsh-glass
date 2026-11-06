@@ -241,8 +241,10 @@ button.wb-row:active { background: var(--dsw-alias-interactive-bg-active); }
 [data-composer-dock] > span:has(> * > [aria-haspopup='dialog']) {
   display: none;
 }
-/* The strip also held the composer off the card edge; keep the same 16px as the sides. */
+/* The strip also held the composer off the card edge; keep the same 16px as the sides.
+   DSH 0.2.2 reserves 22px for the strip, which would leave a gap with nothing in it. */
 [data-composer-dock] {
+  min-height: 0 !important;
   padding-top: 12px;
 }
 @media (prefers-reduced-motion: reduce) {
