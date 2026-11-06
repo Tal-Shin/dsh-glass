@@ -11,10 +11,7 @@ A set of DeepSeek Harness desktop plugins: neutral greys, translucent floating p
 
 | 插件 | 作用 | 依赖 |
 |---|---|---|
-| [`glass-theme`](glass-theme) | 配色、透明外壳、悬浮卡片、渐变背景、阅读排版 | — |
-| [`liquid-glass`](liquid-glass) | 面板、输入框和菜单的玻璃材质与高光 | `glass-theme` |
-| [`cupertino`](cupertino) | 圆角阶梯、阴影、字体栈、分段滑块、开关和弹簧曲线 | — |
-| [`pond-polish`](pond-polish) | 文字对比度、按下反馈、菜单和弹窗弹入 | 建议配 `cupertino` |
+| [`glass-theme`](glass-theme) | 全部外观：配色、玻璃、圆角字体、交互动效。四组设置各自独立，可以单独开关，都在插件详情页调 | — |
 | [`workbench`](workbench) | 右侧栏开始页换成工作台：状态、上下文、改动、任务、子智能体、工具；记住右栏宽度；把输入框下方的状态行和任务条收进来 | — |
 | [`koi-pond`](koi-pond) | 背景 ASCII 锦鲤，可单独开关；首页鱼清晰，文字下自动变淡 | 建议配 `glass-theme` |
 | [`boot-veil`](boot-veil) | 启动画面：应用图标和细进度条，按明暗模式显示 | — |
@@ -29,9 +26,6 @@ A set of DeepSeek Harness desktop plugins: neutral greys, translucent floating p
 
 ```
 github:Tal-Shin/dsh-glass#path:/glass-theme
-github:Tal-Shin/dsh-glass#path:/liquid-glass
-github:Tal-Shin/dsh-glass#path:/cupertino
-github:Tal-Shin/dsh-glass#path:/pond-polish
 github:Tal-Shin/dsh-glass#path:/workbench
 github:Tal-Shin/dsh-glass#path:/koi-pond
 github:Tal-Shin/dsh-glass#path:/boot-veil
@@ -41,14 +35,16 @@ github:Tal-Shin/dsh-glass#path:/turn-resume
 
 也可以把仓库克隆到本地，填各插件文件夹的绝对路径安装。
 
-**顺序**：先装 `glass-theme`，再装 `liquid-glass`。
-
 **建议同时调整**：设置 → 通用设置里把正文字号调到 15、代码字号调到 13。
+
+**从 0.1.x 升级**：`liquid-glass`、`cupertino`、`pond-polish` 已并入 `glass-theme`。升级前先在插件页删除这三个插件，再更新 `glass-theme`。之前在 `liquid-glass` 里保存的设置不会自动带过来，需要重新调一次。
 
 ## 兼容性
 
-- 在 DSH 0.2.1-rc.5 和 0.2.2-rc.1（Windows 11、Electron 44）上测试过，macOS、Linux 未测试。
-- 部分样式依赖外壳内部的类名，`workbench` 用到了未公开的布局接口，DSH 升级后可能需要适配。
+- v0.2.0 在 DSH 0.2.2-rc.1（Windows 11、Electron 44）上测试过，更早的 DSH 没有重新测试，macOS、Linux 未测试。
+- 部分样式依赖外壳内部的类名，类名变了时对应的地方会退回 DSH 自带的实色；`workbench` 用到了未公开的布局接口。DSH 升级后可能需要适配。
+- 折射透镜依赖 Chromium 的 `backdrop-filter` 支持 SVG 滤镜，桌面版可用，默认关闭。
+- 长会话的轨迹页滚动偏慢，主要来自 DSH 自身，开启外观后会再慢一些。
 - `glass-theme` 与其他主题插件同时启用会互相覆盖，只保留一个主题。
 
 ## 卸载

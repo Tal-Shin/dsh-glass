@@ -4,7 +4,8 @@
 [dsh-cngtn-pond](https://github.com/cngtn/dsh-cngtn-pond) 1.5.1 by cngtn.
 
 - `koi-pond/client.js`: the `world`, `shape` and `renderer` modules are
-  unchanged; the `engine` loop was changed to cap its paint rate.
+  unchanged, but now also run in a worker; the `engine` loop was changed to cap
+  its paint rate.
 - `glass-theme/client.js`: the shell layer (transparent frame, floating panels,
   trajectory cards) was adapted; the palette was replaced.
 
