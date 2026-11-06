@@ -11,8 +11,8 @@ A set of DeepSeek Harness desktop plugins: neutral greys, translucent floating p
 
 | 插件 | 作用 | 依赖 |
 |---|---|---|
-| [`glass-theme`](glass-theme) | 全部外观：配色、玻璃、圆角字体、交互动效。四组设置各自独立，可以单独开关，都在插件详情页调 | — |
-| [`workbench`](workbench) | 右侧栏开始页换成工作台：状态、上下文、改动、任务、子智能体、工具；记住右栏宽度；把输入框下方的状态行和任务条收进来 | — |
+| [`glass-theme`](glass-theme) | 全部外观：配色、玻璃、圆角字体、交互动效，四组各自开关。玻璃有“清透 / 标准 / 沉稳”三个预设；开启“折射透镜”后，输入框、顶栏控件和菜单是液态玻璃，菜单从按钮里长出来。设置页会自检 DSH 的界面结构 | — |
+| [`workbench`](workbench) | 右侧栏开始页换成工作台：状态、上下文、改动、任务、子智能体、工具。改动按轮保存、重启后还在，可以就地看差异，也可以回退到任意一轮之前并撤销；记住右栏宽度；把输入框下方的状态行和任务条收进来 | — |
 | [`koi-pond`](koi-pond) | 背景 ASCII 锦鲤，可单独开关；首页鱼清晰，文字下自动变淡 | 建议配 `glass-theme` |
 | [`boot-veil`](boot-veil) | 启动画面：应用图标和细进度条，按明暗模式显示 | — |
 | [`turn-alert`](turn-alert) | 窗口不在前台时，回合结束弹桌面通知 | — |
@@ -37,15 +37,29 @@ github:Tal-Shin/dsh-glass#path:/turn-resume
 
 **建议同时调整**：设置 → 通用设置里把正文字号调到 15、代码字号调到 13。
 
-**从 0.1.x 升级**：`liquid-glass`、`cupertino`、`pond-polish` 已并入 `glass-theme`。升级前先在插件页删除这三个插件，再更新 `glass-theme`。之前在 `liquid-glass` 里保存的设置不会自动带过来，需要重新调一次。
+**从 0.1.x 升级**：`liquid-glass`、`cupertino`、`pond-polish` 已并入 `glass-theme`。升级前先在插件页删除这三个插件，再更新其余插件。之前在 `liquid-glass` 里保存的设置不会自动带过来，需要重新调一次。忘了删的话，`glass-theme` 设置页的“兼容性”会提示。
+
+**装好后重启一次 DSH**：`workbench` 的改动记录在 Host 端运行，重启后才开始记录。
 
 ## 兼容性
 
-- v0.3.0 在 DSH 0.2.2-rc.1（Windows 11、Electron 44）上测试过，更早的 DSH 没有重新测试，macOS、Linux 未测试。
-- 部分样式依赖外壳内部的类名，类名变了时对应的地方会退回 DSH 自带的实色；`workbench` 用到了未公开的布局接口。DSH 升级后可能需要适配。
+- v1.0.0 在 DSH 0.2.2-rc.1（Windows 11、Electron 44）上测试过，包括全新安装与从 0.1.1 升级；更早的 DSH 没有重新测试，macOS、Linux 未测试。
+- 部分样式依赖外壳内部的类名，类名变了时对应的地方会退回 DSH 自带的实色；`workbench` 用到了未公开的布局接口。DSH 升级后可能需要适配：`glass-theme` 设置页的“兼容性”会列出对不上的地方。
 - 折射透镜依赖 Chromium 的 `backdrop-filter` 支持 SVG 滤镜，桌面版可用，默认关闭。
+- `workbench` 只记录文件工具（写入、编辑、补丁）做的改动，命令行做的改动不显示也不回退；回退后 AI 并不知道，继续对话时可以告诉它。
+- 按标签固定版本安装子目录（`#v1.0.0&path:/…`）在 DSH 自带的 pnpm 11 下不可用，安装总是跟随 main。
 - 长会话的轨迹页滚动偏慢，主要来自 DSH 自身，开启外观后会再慢一些。
 - `glass-theme` 与其他主题插件同时启用会互相覆盖，只保留一个主题。
+
+## 维护
+
+DSH 每次更新后，带调试端口启动它，打开一个对话，再运行冒烟测试：
+
+```
+"%LOCALAPPDATA%\Programs\DeepSeek Harness\DeepSeek Harness.exe" --remote-debugging-port=9333
+node tools/smoke.mjs            # 只读检查
+node tools/smoke.mjs --scroll   # 另外测滚动帧率
+```
 
 ## 卸载
 
