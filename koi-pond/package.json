@@ -1,6 +1,6 @@
 {
   "name": "@tal-shin/dsh-koi-pond",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "type": "module",
   "description": "A living ASCII koi pond behind the shell, independent of the active theme.",
   "exports": {
@@ -47,5 +47,8 @@
     "url": "git+https://github.com/Tal-Shin/dsh-glass.git",
     "directory": "koi-pond"
   },
-  "homepage": "https://github.com/Tal-Shin/dsh-glass/tree/main/koi-pond#readme"
+  "homepage": "https://github.com/Tal-Shin/dsh-glass/tree/main/koi-pond#readme",
+  "publishConfig": {
+    "access": "public"
+  }
 }

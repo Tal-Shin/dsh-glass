@@ -1,6 +1,6 @@
 {
   "name": "@tal-shin/dsh-glass-theme",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "type": "module",
   "description": "Colour, glass, corners and type, and motion for the DSH shell, each switchable on its own.",
   "exports": {
@@ -47,5 +47,8 @@
     "url": "git+https://github.com/Tal-Shin/dsh-glass.git",
     "directory": "glass-theme"
   },
-  "homepage": "https://github.com/Tal-Shin/dsh-glass/tree/main/glass-theme#readme"
+  "homepage": "https://github.com/Tal-Shin/dsh-glass/tree/main/glass-theme#readme",
+  "publishConfig": {
+    "access": "public"
+  }
 }

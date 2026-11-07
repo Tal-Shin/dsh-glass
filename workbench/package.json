@@ -1,6 +1,6 @@
 {
   "name": "@tal-shin/dsh-workbench",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "type": "module",
   "description": "A live overview of the session on the right panel's start page.",
   "exports": {
@@ -43,5 +43,8 @@
     "url": "git+https://github.com/Tal-Shin/dsh-glass.git",
     "directory": "workbench"
   },
-  "homepage": "https://github.com/Tal-Shin/dsh-glass/tree/main/workbench#readme"
+  "homepage": "https://github.com/Tal-Shin/dsh-glass/tree/main/workbench#readme",
+  "publishConfig": {
+    "access": "public"
+  }
 }
