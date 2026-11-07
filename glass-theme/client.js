@@ -672,44 +672,60 @@ html body header [data-conversation-tabs] + * > button {
   background: var(--dsw-alias-interactive-bg-hover) !important;
 }
 [data-conversation-tabs] > [role='tab'][aria-selected='true'] {
-  background: color-mix(in srgb, var(--glass-base-solid, var(--dsw-alias-bg-base)) 88%, white) !important;
   color: var(--dsw-alias-label-primary) !important;
-  box-shadow: 0 1px 2px rgba(0,0,0,.10), 0 0 0 .5px rgba(0,0,0,.10) !important;
 }
 body[data-ds-dark-theme] [data-conversation-tabs] {
   background: rgba(255,255,255,.07);
   box-shadow: inset 0 0 0 .5px rgba(255,255,255,.08);
 }
-body[data-ds-dark-theme] [data-conversation-tabs] > [role='tab'][aria-selected='true'] {
-  background: rgba(255,255,255,.12) !important;
-  box-shadow: 0 1px 2px rgba(0,0,0,.45), 0 0 0 .5px rgba(255,255,255,.10) !important;
+/* Without anchor positioning the selected tab itself carries the thumb. Only then: with it, a
+   dark rule here outranked the reset below and drew a second shape behind the thumb. */
+@supports not (anchor-name: --a) {
+  [data-conversation-tabs] > [role='tab'][aria-selected='true'] {
+    background: #fff !important;
+    box-shadow: 0 1px 2px rgb(0 0 0 / .12), 0 2px 8px -2px rgb(0 0 0 / .14), 0 0 0 .5px rgb(0 0 0 / .06) !important;
+  }
+  body[data-ds-dark-theme] [data-conversation-tabs] > [role='tab'][aria-selected='true'] {
+    background: rgb(255 255 255 / .22) !important;
+    box-shadow: 0 1px 3px rgb(0 0 0 / .5), inset 0 .5px 0 rgb(255 255 255 / .14) !important;
+  }
 }
 /* One thumb slides between the tabs: it is anchored to whichever tab is selected, so a
-   changed anchor animates its position. Without anchor positioning the selected tab
-   keeps the static fill above. */
+   changed anchor animates its position. */
 @supports (anchor-name: --a) {
   [data-conversation-tabs] > [role='tab'][aria-selected='true'] {
     anchor-name: --glass-segment;
-    background: transparent !important;
-    box-shadow: none !important;
   }
+  /* Above the capsule's glass, which also sits at -1 and comes later: under it the thumb was
+     blurred and tinted white until nothing showed which tab was chosen. At 0 it is still under
+     the tabs, which are positioned and come after it. Raised and solid, like the system's:
+     a white thumb with a shadow on a grey track. A capsule inside the capsule, so the two
+     curves stay concentric. */
   [data-conversation-tabs]::before {
     content: '';
     position: absolute;
-    z-index: -1;
+    z-index: 0;
     position-anchor: --glass-segment;
     left: anchor(left);
     top: anchor(top);
     width: anchor-size(width);
     height: anchor-size(height);
-    border-radius: calc(var(--dsw-radius-md, 12px) - 3px);
-    background: color-mix(in srgb, var(--glass-base-solid, var(--dsw-alias-bg-base)) 88%, white);
-    box-shadow: 0 1px 2px rgba(0,0,0,.10), 0 0 0 .5px rgba(0,0,0,.10);
+    border-radius: 999px;
+    corner-shape: round;
+    background: #fff;
+    box-shadow: 0 1px 2px rgb(0 0 0 / .12), 0 2px 8px -2px rgb(0 0 0 / .14), 0 0 0 .5px rgb(0 0 0 / .06);
   }
   body[data-ds-dark-theme] [data-conversation-tabs]::before {
-    background: rgba(255,255,255,.12);
-    box-shadow: 0 1px 2px rgba(0,0,0,.45), 0 0 0 .5px rgba(255,255,255,.10);
+    background: rgb(255 255 255 / .22);
+    box-shadow: 0 1px 3px rgb(0 0 0 / .5), inset 0 .5px 0 rgb(255 255 255 / .14);
   }
+}
+/* Increase Contrast and forced colours: the chosen tab gets an outline, not only a fill. */
+@media (prefers-contrast: more) {
+  [data-conversation-tabs]::before { box-shadow: 0 0 0 1.5px var(--dsw-alias-label-primary); }
+}
+@media (forced-colors: active) {
+  [data-conversation-tabs] > [role='tab'][aria-selected='true'] { outline: 2px solid Highlight; outline-offset: -2px; }
 }
 
 /* The model name truncates first, so the badge is never cut in half. */
@@ -793,9 +809,9 @@ body [role='treeitem']:focus-visible {
 .glass-field > label, .glass-field > span { color: var(--dsw-alias-label-primary); }
 .glass-field output { color: var(--dsw-alias-label-secondary); font-variant-numeric: tabular-nums; text-align: right; }
 .glass-field input[type='range'] { width: 100%; accent-color: var(--dsw-alias-state-business-primary); }
-.glass-choices { grid-column: 2 / 4; display: inline-flex; flex-wrap: wrap; gap: 2px; justify-self: start; padding: 2px; border-radius: 9px; background: var(--dsw-alias-interactive-bg-active); }
+.glass-choices { grid-column: 2 / 4; display: inline-flex; flex-wrap: wrap; gap: 2px; justify-self: start; padding: 2px; border-radius: 999px; corner-shape: round; background: var(--dsw-alias-interactive-bg-active); }
 .glass-choices button {
-  padding: 3px 12px; border: 0; border-radius: 7px; background: transparent;
+  padding: 3px 12px; border: 0; border-radius: 999px; background: transparent;
   color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; cursor: pointer;
 }
 .glass-choices button[aria-checked='true'] { background: var(--glass-base-solid, var(--dsw-alias-bg-base)); color: var(--dsw-alias-label-primary); box-shadow: 0 1px 2px rgb(0 0 0 / .12); }
@@ -1033,11 +1049,14 @@ html[data-lg-refraction="lens"] body [data-composer-card][data-lg-lens]::before 
 }
 html[data-lg-refraction="lens"] body [data-lg-lens][data-lg-surface='tabs'] {
   background: transparent !important;
+  /* A grey track, so the white thumb on it reads at a glance. */
+  --lg-surface-fill: linear-gradient(color-mix(in srgb, var(--dsw-alias-label-primary) 7%, transparent), color-mix(in srgb, var(--dsw-alias-label-primary) 7%, transparent)), var(--lg-control-fill);
 }
 /* The toolbar's buttons share one capsule, as on the system's own toolbars. */
 html[data-lg-refraction="lens"] body [data-lg-lens][data-lg-surface='toolbar'] {
   position: relative;
   border-radius: 999px;
+  corner-shape: round;
   padding-inline: 3px;
   box-shadow: 0 0 0 .5px var(--lg-edge), 0 1px 3px rgb(0 0 0 / calc(.05 * var(--lg-k, 1)));
 }
@@ -1086,25 +1105,66 @@ html[data-lg-refraction="lens"] body [data-lg-lens] > [data-lg-sheen] {
 html[data-lg-refraction="lens"] body [data-lg-sheen] > i {
   position: absolute;
   inset: 0;
-  background: var(--lg-sheen-map, none) no-repeat 0 0 / 100% 400%;
+  background: var(--lg-sheen-map, none) no-repeat 0 var(--lg-row, 0) / 100% 400%;
   --lg-lx: var(--lg-light-x, -.38);
   --lg-ly: var(--lg-light-y, -.92);
 }
 html[data-lg-refraction="lens"] body [data-lg-sheen] > i:nth-child(1) {
-  background-position: 0 0;
+  --lg-row: 0%;
   opacity: calc(var(--lg-sheen-boost, 1) * (max(var(--lg-lx), 0) + var(--lg-sheen-back) * max(-1 * var(--lg-lx), 0)));
 }
 html[data-lg-refraction="lens"] body [data-lg-sheen] > i:nth-child(2) {
-  background-position: 0 33.3333%;
+  --lg-row: 33.3333%;
   opacity: calc(var(--lg-sheen-boost, 1) * (max(-1 * var(--lg-lx), 0) + var(--lg-sheen-back) * max(var(--lg-lx), 0)));
 }
 html[data-lg-refraction="lens"] body [data-lg-sheen] > i:nth-child(3) {
-  background-position: 0 66.6667%;
+  --lg-row: 66.6667%;
   opacity: calc(var(--lg-sheen-boost, 1) * (max(var(--lg-ly), 0) + var(--lg-sheen-back) * max(-1 * var(--lg-ly), 0)));
 }
 html[data-lg-refraction="lens"] body [data-lg-sheen] > i:nth-child(4) {
-  background-position: 0 100%;
+  --lg-row: 100%;
   opacity: calc(var(--lg-sheen-boost, 1) * (max(-1 * var(--lg-ly), 0) + var(--lg-sheen-back) * max(var(--lg-ly), 0)));
+}
+/* Focus is not a ring around the glass but the light on its rim taking the accent colour: one thin
+   line where the light falls, weaker on the far side, moving with the pointer as the sheen does.
+   The same map as the sheen, so it can never sit somewhere the light is not. Without the lens,
+   and so under Increase Contrast, the plain ring stays: it is what shows the focus there. */
+html[data-lg-refraction="lens"] body [data-lg-surface='composer'] > [data-lg-sheen] > i::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--dsw-alias-state-business-primary);
+  -webkit-mask: var(--lg-sheen-map, none) no-repeat 0 var(--lg-row, 0) / 100% 400%;
+  mask: var(--lg-sheen-map, none) no-repeat 0 var(--lg-row, 0) / 100% 400%;
+  opacity: 0;
+  transition: opacity var(--glass-control) ease;
+}
+html[data-lg-refraction="lens"] body [data-lg-surface='composer']:focus-within > [data-lg-sheen] > i::after {
+  opacity: 1;
+}
+html[data-lg-refraction="lens"] body [data-composer-card][data-lg-lens]:focus-within {
+  border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary) 20%, var(--lg-edge, var(--dsw-alias-border-l2)));
+  box-shadow: var(--lg-rim-shadow, 0 0 #0000), var(--lg-composer-shadow, var(--dsw-shadow-lv2)) !important;
+}
+/* With text passing behind it the composer thickens and lifts; over empty sheet it stays clear.
+   A layer of its own, so only its opacity changes, and inside the filter's element, so that
+   fading it cannot cut the filter off from the page. The solid token: inside the main panel
+   --dsw-alias-bg-base is transparent. */
+html body [data-composer-card][data-lg-over] {
+  --lg-composer-shadow: 0 8px 22px -8px rgb(0 0 0 / calc(.2 * var(--lg-k, 1))), var(--glass-shadow-raised, 0 0 #0000);
+}
+html[data-lg-refraction="lens"] body [data-lg-surface='composer'] > [data-lg-glass] > b::after {
+  content: '';
+  position: absolute;
+  inset: var(--lg-lens-reach, 0px);
+  border-radius: var(--lg-surface-radius, 0px);
+  corner-shape: var(--lg-surface-corner, round);
+  background: color-mix(in srgb, var(--glass-base-solid) 52%, transparent);
+  opacity: 0;
+  transition: opacity var(--glass-control) ease;
+}
+html[data-lg-refraction="lens"] body [data-lg-surface='composer'][data-lg-over] > [data-lg-glass] > b::after {
+  opacity: 1;
 }
 
 /* Floating surfaces. Menus get their blur from the shell's own tokens above. */
@@ -1165,6 +1225,20 @@ html body .V4vHZW_toBottom {
     --dsw-menu-backdrop-filter: none !important;
   }
 }
+/* Increase Contrast keeps the sheets but makes them read: nearly solid, with an edge you can see. */
+@media (prefers-contrast: more) {
+  body, body[data-ds-dark-theme] {
+    --lg-sheet: color-mix(in srgb, var(--dsw-alias-bg-base) 94%, transparent);
+    --lg-panel: color-mix(in srgb, var(--dsw-alias-bg-base) 94%, transparent);
+    --lg-composer: var(--dsw-alias-bg-base);
+    --lg-composer-fill: var(--dsw-alias-bg-base);
+    --lg-thick: var(--dsw-alias-bg-base);
+    --lg-thin: var(--dsw-alias-bg-layer-1);
+    --lg-edge: color-mix(in srgb, var(--dsw-alias-label-primary) 60%, transparent);
+    --lg-glint: transparent;
+    --lg-glint-idle: transparent;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   html body [data-composer-card] { --lg-composer-fill: var(--lg-composer); }
 }
@@ -1189,12 +1263,14 @@ html, body {
 /* Concentric corners: anything sitting in a corner takes that corner's radius minus the gap
    between them, so the two curves run parallel. Written as formulas, so the slider moves
    them together; the floors stop small panel radii from squaring things off. The seat gap is
-   ours. The other three are the shell's own padding, named here so each appears once. */
+   ours. The other two are the shell's own padding, named here so each appears once. */
 html body {
   --glass-panel-inset: 10px;
-  --glass-composer-inset: 9px;
   --glass-menu-inset: 5px;
-  --glass-composer-radius: max(calc(var(--dsw-radius-panel, 22px) - var(--glass-seat-gap, 16px)), 12px);
+  /* Concentric with the circular buttons inside it: their radius, 17px, plus their inset, 9px.
+     Smaller panel radii bring it down with them. It no longer follows the sheet exactly, but
+     the corners only meet at the narrowest widths, and there the gap is 20px against 16px. */
+  --glass-composer-radius: clamp(12px, calc(var(--dsw-radius-panel, 22px) - 6px), 26px);
 }
 html body [data-composer-card] {
   border-radius: var(--glass-composer-radius);
@@ -1202,10 +1278,29 @@ html body [data-composer-card] {
 html body [data-composer-card]::before {
   border-radius: calc(var(--glass-composer-radius) - 1px);
 }
-/* The shell marks these round, for circles. Here they follow the card's curve instead. */
+/* Large surfaces keep the continuous corner; controls take true round ends. At half the height a
+   superellipse reads as a soft square, so a capsule or a circle has to be round. On a small
+   rounded control the difference cannot be seen, which is why this can go by role. Exact class
+   names only for the few that are not buttons: this runs on every element of the trajectory. */
+html body :is(button:not([role='menuitem'], [role='treeitem'], .wb-row), [role='button'], [role='tab'], [role='tablist'], [role='switch'],
+  .Wd4N7W_search, .xeixwq_kindTag, .xeixwq_event, .mOxcpG_split, ._indicator_1lga9_11, ._tabs_1lga9_1, ._6qcDqa_linkButton) {
+  corner-shape: round;
+}
+html body .wtg9ga_newSession {
+  border-radius: 999px;
+}
+/* Capsules, Apple's shape for standout actions: at equal width and height, a circle. Both are the
+   same size, so they sit on one line and share the card's corner centre. */
 html body [data-composer-card] :is(button[class*='_primary'], [class*='GRgSLq_add']) {
-  border-radius: max(calc(var(--glass-composer-radius) - var(--glass-composer-inset)), 8px);
-  corner-shape: var(--dsw-corner-shape, round);
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  corner-shape: round;
+}
+/* The shell lifts the send button 2px off the row; the add button has to sit on the same line. */
+html body [data-composer-card] [class*='GRgSLq_add'] {
+  transform: translateY(-2px);
 }
 html body :is(._5Qcc8a_trigger, [data-rightbar-col] [class*='_tab_3oazc']) {
   border-radius: calc(var(--dsw-radius-panel, 22px) - var(--glass-panel-inset));
@@ -1265,6 +1360,20 @@ body {
   --glass-press: min(var(--lg-motion, 1), 1.25);
   --glass-spring: linear(0, 0.07, 0.223, 0.399, 0.565, 0.705, 0.813, 0.893, 0.947, 0.981, 1.001, 1.011, 1.015, 1.015, 1.013, 1.01, 1.008, 1.005, 1);
 }
+
+/* A surface DSH has removed, playing out. Back in the page its stylesheet animations would start over. */
+[data-lg-leaving], [data-lg-leaving] * { animation: none !important; transition: none !important; }
+
+/* The boot veil waits for the start page, then lets mountEntry's whale take over from its own.
+   Warm: a hair see-through, so what lies under it is really drawn before anything moves. Fully
+   opaque it would be skipped, and the first frame of the fade would pay for all of it at once. */
+html:is([data-lg-entry='hold'], [data-lg-entry='warm']) #dsh-boot { visibility: visible !important; display: block !important; }
+html[data-lg-entry='hold'] #dsh-boot .dsh-boot-sheet { opacity: 1 !important; }
+html[data-lg-entry='warm'] #dsh-boot .dsh-boot-sheet { opacity: .99 !important; transition: none; }
+html[data-lg-entry='warm'] #dsh-boot { pointer-events: none; }
+html[data-lg-entry='run'] #dsh-boot .dsh-boot-mark { visibility: hidden; }
+html[data-lg-entry='run'] #dsh-boot .dsh-boot-ring { opacity: 0; transition: opacity 120ms ease; }
+html[data-lg-entry='run'] #dsh-boot .dsh-boot-stack { transform: none; }
 
 /* Rows answer with a fill, because scaling a wide row makes its far edge jump. */
 [data-slot='sidebar'] [role='treeitem']:active,
@@ -1337,7 +1446,23 @@ body {
     animation: glass-fade var(--glass-control) ease;
   }
 }
-html[data-lg-motion="off"] body :is([data-menu-material], [role='dialog'], [class*='_overlay'] > [class*='_mask']) {
+/* Reduced motion drops the travel and keeps the fades: they say what changed without moving anything.
+   Layer by layer on a menu, because fading the surface would cut its glass off from the page. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes glass-calm-in { from { opacity: 0; } }
+  [data-menu-material] > :not([data-lg-glass], [data-lg-sheen]),
+  [data-menu-material] > [data-lg-glass] > b,
+  [data-menu-material] > [data-lg-glass]::after,
+  [data-menu-material] > [data-lg-sheen],
+  [role='dialog']:not([data-menu-material]),
+  [class*='_overlay'] > [class*='_mask'] {
+    animation: glass-calm-in var(--glass-control) ease;
+  }
+}
+html[data-lg-motion="off"] body :is([data-menu-material], [role='dialog'], [class*='_overlay'] > [class*='_mask']),
+html[data-lg-motion="off"] body [data-menu-material] > *,
+html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass] > b,
+html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass]::after {
   animation: none !important;
 }
 `;
@@ -2069,12 +2194,32 @@ html[data-lg-motion="off"] body :is([data-menu-material], [role='dialog'], [clas
     function mountOrigin() {
       const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
       let press = null;
+      /** Menus that grew from a button: how far they came, and the animation that brought them. */
+      const grown = new WeakMap();
+      /** Surfaces DSH has removed that are still playing out. */
+      const leaving = new Map();
+      const still = () => reducedMotion.matches || document.documentElement.dataset.lgMotion === 'off';
       const onDown = (event) => {
         const trigger = event.target instanceof Element ? event.target.closest('button, [role="button"], [role="combobox"]') : null;
         press = { x: event.clientX, y: event.clientY, at: performance.now(), box: trigger?.getBoundingClientRect() ?? null };
       };
+      /** Where a running scale has got to. Works on a removed surface, unlike its computed style. */
+      const scaleOf = ({ shell, from, to }) => {
+        const progress = shell.effect.getComputedTiming().progress ?? 1;
+        return [0, 1].map((axis) => from[axis] + (to[axis] - from[axis]) * progress);
+      };
+      /** Reopened before it had gone: stop the leaving menu and hand over where it had got to. */
+      const takeOver = (box) => {
+        for (const exit of leaving.values()) {
+          if (!exit.box || Math.abs(exit.box.left - box.left) > 1 || Math.abs(exit.box.top - box.top) > 1) continue;
+          const scale = scaleOf(exit);
+          exit.stop();
+          return scale;
+        }
+        return null;
+      };
       const grow = (surface, from) => {
-        if (reducedMotion.matches || document.documentElement.dataset.lgMotion === 'off' || typeof surface.animate !== 'function') return false;
+        if (still() || typeof surface.animate !== 'function') return false;
         const width = surface.offsetWidth;
         const height = surface.offsetHeight;
         if (!width || !height) return false;
@@ -2089,34 +2234,627 @@ html[data-lg-motion="off"] body :is([data-menu-material], [role='dialog'], [clas
         const sx = Math.min(Math.max(from.width / width, 0.2), 1);
         const sy = Math.min(Math.max(from.height / height, 0.2), 1);
         surface.style.transformOrigin = `${Math.round(from.left + from.width / 2 - left)}px ${Math.round(from.top + from.height / 2 - top)}px`;
-        const root = getComputedStyle(document.documentElement);
-        const duration = (parseFloat(root.getPropertyValue('--glass-spring-duration')) || 0.36) * 1000;
-        const easing = (root.getPropertyValue('--glass-spring') || getComputedStyle(document.body).getPropertyValue('--glass-spring')).trim() || 'ease-out';
+        const { easing, ms: duration } = appleSpring();
         // The menu unmounts when it closes, so the stylesheet's pop stays off for its lifetime.
         surface.style.animation = 'none';
-        surface.animate([{ scale: `${sx.toFixed(3)} ${sy.toFixed(3)}` }, { scale: '1 1' }], { duration, easing });
+        const start = takeOver(from) ?? [sx, sy];
+        const shell = surface.animate([{ scale: `${start[0].toFixed(3)} ${start[1].toFixed(3)}` }, { scale: '1 1' }], { duration, easing });
+        grown.set(surface, { shell, from: start, to: [1, 1], rest: [sx, sy], box: from });
         for (const child of surface.children) {
           if (child.matches('[data-lg-glass], [data-lg-sheen], [class*="_material_"]')) continue;
           child.animate([{ opacity: 0 }, { opacity: 0, offset: 0.25 }, { opacity: 1 }], { duration: duration * 0.7, easing: 'ease-out' });
         }
         return true;
       };
-      const onStart = (event) => {
-        if (event.animationName !== 'glass-pop' && event.animationName !== 'glass-sheet') return;
-        const surface = event.target;
-        if (!(surface instanceof HTMLElement)) return;
+      const placed = new WeakSet();
+      const place = (surface) => {
+        if (placed.has(surface)) return;
+        placed.add(surface);
         if (press === null || performance.now() - press.at > 600) return;
-        if (event.animationName === 'glass-pop' && press.box && grow(surface, press.box)) return;
+        if (surface.matches('[data-menu-material]') && press.box && grow(surface, press.box)) return;
         const box = surface.getBoundingClientRect();
         const x = Math.min(Math.max(press.x - box.left, 0), box.width);
         const y = Math.min(Math.max(press.y - box.top, 0), box.height);
         surface.style.transformOrigin = `${Math.round(x)}px ${Math.round(y)}px`;
       };
+      // Runs before the new surface is painted. animationstart comes at least a frame later, by
+      // which time a menu has been seen at the pop's full size, and pulling it back to its button
+      // then reads as a second bounce.
+      const SURFACES = "[data-menu-material], [role='dialog']";
+      /**
+       * Layer by layer, the contents first and the glass last. Never the opacity of anything around
+       * the filter, which sits on the glass layer's <b>: while that animates the filter can see
+       * nothing behind it and shows its raw map, a grey sheet.
+       */
+      const fadeLayers = (menu) => {
+        const last = [{ opacity: 1 }, { opacity: 1, offset: 0.6 }, { opacity: 0 }];
+        const timing = { duration: LEAVE_MS, fill: 'forwards' };
+        const animations = [menu.animate({ borderColor: 'transparent', boxShadow: '0 0 0 0 transparent' }, { ...timing, easing: OUT })];
+        for (const child of menu.children) {
+          if (child.matches('[data-lg-glass]')) {
+            const filter = child.querySelector(':scope > b');
+            if (filter) animations.push(filter.animate(last, timing));
+            animations.push(child.animate(last, { ...timing, pseudoElement: '::after' }));
+          } else if (child.matches('[data-lg-sheen], [class*="_material_"]')) {
+            animations.push(child.animate(last, timing));
+          } else {
+            animations.push(child.animate([{ opacity: 1 }, { opacity: 0 }], { ...timing, duration: LEAVE_MS * 0.6 }));
+          }
+        }
+        return animations;
+      };
+      /** A menu goes back into its button, from wherever it has got to. */
+      const shrink = (menu) => {
+        if (reducedMotion.matches) return { animations: fadeLayers(menu) };
+        const record = grown.get(menu);
+        if (!record) {
+          const settle = menu.animate([{ scale: 1 }, { scale: 0.96 }], { duration: LEAVE_MS, easing: OUT, fill: 'forwards' });
+          return { animations: [settle, ...fadeLayers(menu)] };
+        }
+        const from = scaleOf(record);
+        record.shell.cancel();
+        const shell = menu.animate(
+          [{ scale: `${from[0].toFixed(3)} ${from[1].toFixed(3)}` }, { scale: `${record.rest[0].toFixed(3)} ${record.rest[1].toFixed(3)}` }],
+          { duration: LEAVE_MS, easing: OUT, fill: 'forwards' },
+        );
+        return { animations: [shell, ...fadeLayers(menu)], shell, from, to: record.rest, box: record.box };
+      };
+      /** A dialog sinks back the way it rose. Its layers fade apart for the same reason as a menu's. */
+      const sink = (root, dialog) => ({
+        animations: [
+          ...(root === dialog ? [root] : [...root.children]).map((layer) => layer.animate([{ opacity: 1 }, { opacity: 0 }], { duration: LEAVE_MS, easing: 'ease-out', fill: 'forwards' })),
+          ...(reducedMotion.matches ? [] : [dialog.animate([{ scale: '1', translate: '0 0' }, { scale: '.97', translate: '0 6px' }], { duration: LEAVE_MS, easing: OUT, fill: 'forwards' })]),
+        ],
+      });
+      /** Inert, so the next click goes straight through to the page: nobody waits for this. */
+      const leave = (node, play) => {
+        node.setAttribute('data-lg-leaving', '');
+        node.inert = true;
+        document.body.append(node);
+        const exit = play();
+        exit.stop = () => exit.animations.forEach((animation) => animation.cancel());
+        leaving.set(node, exit);
+        const gone = () => {
+          leaving.delete(node);
+          node.remove();
+        };
+        Promise.allSettled(exit.animations.map((animation) => animation.finished)).then(gone);
+      };
+      const onBody = (records) => {
+        let replaced = false;
+        for (const record of records) {
+          for (const node of record.addedNodes) {
+            if (!(node instanceof HTMLElement) || node.hasAttribute('data-lg-leaving')) continue;
+            const surface = node.matches(SURFACES) ? node : node.querySelector(SURFACES);
+            if (!surface) continue;
+            place(surface);
+            replaced ||= surface.matches('[data-menu-material]');
+          }
+          if (document.documentElement.dataset.lgMotion === 'off') continue;
+          for (const node of record.removedNodes) {
+            if (!(node instanceof HTMLElement) || node.hasAttribute('data-lg-leaving')) continue;
+            if (node.matches('[data-menu-material]')) {
+              leave(node, () => shrink(node));
+              continue;
+            }
+            const dialog = node.matches("[role='dialog']") ? node : node.querySelector("[role='dialog']");
+            if (dialog) leave(node, () => sink(node, dialog));
+          }
+        }
+        // Sliding along a menu bar: the next menu is already there, so the last one just goes.
+        if (replaced) for (const [node, exit] of leaving) if (node.matches('[data-menu-material]')) exit.stop();
+      };
+      // For a surface that does not arrive as a child of the body.
+      const onStart = (event) => {
+        if (event.animationName !== 'glass-pop' && event.animationName !== 'glass-sheet') return;
+        if (event.target instanceof HTMLElement) place(event.target);
+      };
+      const observer = new MutationObserver(onBody);
+      observer.observe(document.body, { childList: true });
       document.addEventListener('pointerdown', onDown, { capture: true, passive: true });
       document.addEventListener('animationstart', onStart, true);
       return () => {
+        observer.disconnect();
         document.removeEventListener('pointerdown', onDown, { capture: true });
         document.removeEventListener('animationstart', onStart, true);
+        for (const exit of leaving.values()) exit.stop();
+      };
+    }
+
+    /**
+     * The first message of a session. The shell swaps the start page for the conversation in a
+     * single frame: the composer jumps to the bottom, the title is gone, the messages are there.
+     * It keeps the same elements through the swap, so this plays it as one movement instead. The
+     * glass falls from where it was to its seat on the spring, the title and the row above it
+     * fade away, the messages rise in behind it, and the water feels it: koi-pond listens for
+     * dsh-glass:splash, and without that bundle the event simply goes unheard.
+     *
+     * A send is only known once the phase changes, and by then the old position and the title
+     * are gone, so the position is noted and the title copied when a send is asked for. A press
+     * that sends nothing, an empty composer, leaves them to expire.
+     */
+    /**
+     * The composer floats over the conversation, and its glass answers what is behind it. A scroll
+     * position says so without reading any pixels: at the bottom the last turn ends above the card,
+     * and any further up there is text under it. Only the composer: the header's controls sit over
+     * the top of the sheet, where nothing passes behind them.
+     */
+    function mountDepth() {
+      const PANES = "[class*='an3WzG_scrollBody'], [class*='xeixwq_tablePane']";
+      /** A little short of the bottom still counts as the bottom. */
+      const EDGE = 24;
+      /** Changing session and a growing reply move the content without any scroll. */
+      const LOOK_MS = 500;
+      let frame = 0;
+      const check = () => {
+        frame = 0;
+        const card = document.querySelector('[data-composer-card]');
+        if (!card) return;
+        const over = [...document.querySelectorAll(PANES)].some((pane) => pane.scrollHeight - pane.scrollTop - pane.clientHeight > EDGE);
+        card.toggleAttribute('data-lg-over', over);
+      };
+      const onScroll = () => {
+        if (!frame) frame = requestAnimationFrame(check);
+      };
+      const timer = setInterval(() => {
+        if (!document.hidden) check();
+      }, LOOK_MS);
+      document.addEventListener('scroll', onScroll, { capture: true, passive: true });
+      return () => {
+        clearInterval(timer);
+        cancelAnimationFrame(frame);
+        document.removeEventListener('scroll', onScroll, { capture: true });
+        document.querySelector('[data-composer-card]')?.removeAttribute('data-lg-over');
+      };
+    }
+
+    /**
+     * Koi swim out from under what is being written. Only with words in the composer, not on
+     * focus: DSH focuses it by itself, and koi reading through an idle sheet of glass are the point
+     * of the glass.
+     */
+    function mountWriting() {
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+      const NUDGE_MS = 900;
+      let marked = null;
+      let timer = 0;
+      let lastNudge = -Infinity;
+      let queued = 0;
+      const still = () => reducedMotion.matches || document.documentElement.dataset.lgMotion === 'off';
+      const written = (card) => {
+        const editor = card.querySelector("[contenteditable='true'], textarea");
+        return !!editor && (editor.value ?? editor.textContent).trim() !== '';
+      };
+      const mark = (card) => {
+        if (marked === card) return;
+        marked?.removeAttribute('data-koi-steer');
+        card?.setAttribute('data-koi-steer', '');
+        marked = card;
+      };
+      // Sending empties the editor without an input event, so keep looking while it holds words.
+      const watch = () => {
+        if (!marked?.isConnected || !written(marked) || still()) mark(null);
+        if (!marked) {
+          clearInterval(timer);
+          timer = 0;
+        }
+      };
+      const felt = (card) => {
+        queued = 0;
+        if (still()) return;
+        mark(written(card) ? card : null);
+        if (marked) timer ||= setInterval(watch, 400);
+        const now = performance.now();
+        if (!marked || now - lastNudge < NUDGE_MS) return;
+        lastNudge = now;
+        const { left, top, width, height } = card.getBoundingClientRect();
+        window.dispatchEvent(new CustomEvent('dsh-glass:writing', { detail: { left, top, width, height } }));
+      };
+      // The editor takes a first character in beforeinput and never sends input for it, and the
+      // text is only there a moment later, so look on the next frame.
+      const onInput = (event) => {
+        const card = event.target instanceof Element ? event.target.closest('[data-composer-card]') : null;
+        if (card && !queued) queued = requestAnimationFrame(() => felt(card));
+      };
+      document.addEventListener('beforeinput', onInput, true);
+      document.addEventListener('input', onInput, true);
+      return () => {
+        document.removeEventListener('beforeinput', onInput, true);
+        document.removeEventListener('input', onInput, true);
+        cancelAnimationFrame(queued);
+        clearInterval(timer);
+        mark(null);
+      };
+    }
+
+    /* Motion has four tiers, and everything moves on one of them.
+         instant  --glass-instant, .1s: hover and colour, no spring.
+         control  --glass-control, .2s: a state changing in place.
+         spring   --glass-spring-duration on --glass-spring: press, switches, menus. The one
+                  tier the motion setting changes.
+         page     at most PAGE_MS: the page itself changing, so never stretched by that setting.
+                  Parts of a page ride along on RISE, for PART_MS, or SHORT_PART_MS when the
+                  change is one people make all day.
+       Leaving is quicker than arriving: LEAVE_MS on OUT, which gathers speed and is gone.
+       Frequent actions get the short version or none. Typing gets none. */
+    const PAGE_MS = 500;
+    const PART_MS = 300;
+    const SHORT_PART_MS = 240;
+    const LEAVE_MS = 180;
+    const RISE = 'cubic-bezier(.22, 1, .36, 1)';
+    const OUT = 'cubic-bezier(.4, 0, 1, 1)';
+
+    /** The theme's spring as an easing, and its length in ms under the motion setting. */
+    function appleSpring() {
+      const style = getComputedStyle(document.documentElement);
+      const easing = (style.getPropertyValue('--glass-spring') || getComputedStyle(document.body).getPropertyValue('--glass-spring')).trim() || 'ease-out';
+      return { easing, ms: (parseFloat(style.getPropertyValue('--glass-spring-duration')) || 0.36) * 1000 };
+    }
+
+    /**
+     * Awakening, Continuity, Home: one space, with the interface waking inside it.
+     *
+     * A cold start has the short ritual. The veil wears the page's own background, so lifting it
+     * only reveals what is waking: the whale leaves for its place in the title, and the title, the
+     * option row and the composer follow it in. All of that lands on the page's real elements, so
+     * the last frame of the boot is the first frame of the start page.
+     *
+     * Leaving a conversation for a new start page is the same space again, shorter: what was on
+     * screen dissolves where it stands while the composer glides back up.
+     *
+     * Four rules hold for all of it.
+     *   Only a cold start plays the ritual. A refresh just lifts the veil.
+     *   The page takes input as soon as it exists. Nothing here waits for an animation.
+     *   Whatever happens next settles from where things are: input hurries the animations to their
+     *   end, and a resize or a change of page hands over to the real elements.
+     *   Reduced motion keeps the fades and drops the travel.
+     */
+    function mountEntry() {
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+      /** The whale is a plugin slot and can come after the page; past this, just lift the veil. */
+      const GIVE_UP_MS = 500;
+      /** Where the whale sits inside the square icon on the veil. */
+      const ICON = { left: 0.02, top: 0.14, width: 0.967, height: 0.726 };
+      /** Drawn this many times under the veil before anything moves, or for this long at most. */
+      const WARM_FRAMES = 3;
+      const WARM_MS = 160;
+      /** Long enough for the page to change, short enough not to match a later change. */
+      const FRESH_MS = 1500;
+      /** How much faster everything finishes once the person has moved on. */
+      const HURRY = 3;
+      const HAND_OVER_MS = 120;
+      const DISSOLVE_MS = 200;
+      const html = document.documentElement;
+      const SPINNER = '[data-dsh-boot-spinner]';
+      let timer = 0;
+      let goneAt = 0;
+      let playing = null;
+      let glide = null;
+      let lastBox = null;
+      let watching = 0;
+      const rootOf = () => document.querySelector("[class*='an3WzG_root']");
+      const fishOf = (root) => root?.querySelector("svg[class*='WOwLGG_fish']");
+      const markOf = () => [...document.querySelectorAll('#dsh-boot .dsh-boot-mark')].find((image) => image.getBoundingClientRect().width > 0);
+      let phase = rootOf()?.dataset.phase;
+      const off = () => html.dataset.lgMotion === 'off';
+      const lift = () => {
+        delete html.dataset.lgEntry;
+      };
+      const arrive = (el, delay, duration, reach) => el?.animate(
+        [{ opacity: 0, translate: `0 ${reach}px` }, { opacity: 1, translate: '0 0' }],
+        { duration, delay, easing: RISE, fill: 'backwards' },
+      );
+      /** What is playing, how to hand it over to the real page, and what to clear up afterwards. */
+      const play = (animations, handOver, tidy) => {
+        const running = { animations: animations.filter(Boolean), handOver };
+        playing = running;
+        Promise.allSettled(running.animations.map((animation) => animation.finished)).then(() => {
+          if (playing === running) playing = null;
+          tidy?.();
+        });
+      };
+      const hurry = () => playing?.animations.forEach((animation) => animation.updatePlaybackRate(HURRY));
+      const settle = () => {
+        playing?.handOver?.();
+        hurry();
+      };
+
+      /* ── Awakening ─────────────────────────────────────────────────────── */
+      const enter = (root, fish, mark) => {
+        const { easing, ms } = appleSpring();
+        const at = mark.getBoundingClientRect();
+        const to = fish.getBoundingClientRect();
+        const from = { left: at.left + at.width * ICON.left, top: at.top + at.height * ICON.top, width: at.width * ICON.width, height: at.height * ICON.height };
+        // The same paper as the page, so the veil's fade changes nothing but what is waking.
+        const veil = document.querySelector('#dsh-boot .dsh-boot-sheet');
+        const paper = getComputedStyle(document.body);
+        if (veil) {
+          veil.style.backgroundColor = paper.backgroundColor;
+          veil.style.backgroundImage = paper.backgroundImage;
+        }
+        // Starts large and shrinks, so it is never a small drawing blown up. An element around the
+        // drawing, because an SVG's transform cannot run on the compositor, and this one has to
+        // keep moving through the longest tasks of the launch.
+        const copy = document.createElement('div');
+        copy.setAttribute('data-lg-whale', '');
+        copy.setAttribute('aria-hidden', 'true');
+        copy.style.cssText = `position:fixed;left:${from.left}px;top:${from.top}px;width:${from.width}px;height:${from.height}px;z-index:2147483001;pointer-events:none;transform-origin:0 0;will-change:transform;color:${getComputedStyle(fish).color}`;
+        const drawing = fish.cloneNode(true);
+        drawing.removeAttribute('class');
+        drawing.style.cssText = 'display:block;width:100%;height:100%';
+        copy.append(drawing);
+        document.body.append(copy);
+        html.dataset.lgEntry = 'run';
+        const flight = Math.min(ms * 1.1, PAGE_MS);
+        const card = root.querySelector('[data-composer-card]');
+        const hidden = fish.animate([{ opacity: 0 }, { opacity: 0 }], { duration: flight });
+        // The real whale is already where it belongs, so the copy gives way to it where it stands.
+        const handOver = () => {
+          if (hidden.playState === 'finished' || hidden.playState === 'idle') return;
+          hidden.cancel();
+          fish.animate([{ opacity: 0 }, { opacity: 1 }], { duration: HAND_OVER_MS, easing: 'ease-out' });
+          copy.animate([{ opacity: 1 }, { opacity: 0 }], { duration: HAND_OVER_MS, easing: 'ease-out', fill: 'forwards' });
+        };
+        play([
+          copy.animate(
+            [{ transform: 'translate(0, 0) scale(1)' }, { transform: `translate(${to.left - from.left}px, ${to.top - from.top}px) scale(${to.width / from.width})` }],
+            { duration: flight, easing, fill: 'forwards' },
+          ),
+          hidden,
+          arrive(root.querySelector("[class*='WOwLGG_titleGroup']"), 100, PART_MS, 10),
+          arrive(root.querySelector("[class*='an3WzG_heroWorkspaceRow']"), 150, PART_MS, 10),
+          // No opacity on the card: it would cut the glass off from the page. The veil is still
+          // lifting, so the glass is there first and what is on it follows. That also hides the
+          // moment DSH swaps its placeholder once it knows the workspace.
+          card?.animate(
+            [{ translate: '0 16px' }, { translate: '0 0' }],
+            { duration: Math.min(ms, 360), delay: 200, easing, fill: 'backwards' },
+          ),
+          ...[...(card?.children ?? [])]
+            .filter((part) => !part.matches('[data-lg-glass], [data-lg-sheen]'))
+            .map((part) => arrive(part, 260, PART_MS - 40, 0)),
+        ], handOver, () => {
+          copy.remove();
+          lift();
+        });
+      };
+      /** The page already takes input here: the veil no longer catches the pointer. */
+      const warm = (root, fish, mark) => {
+        html.dataset.lgEntry = 'warm';
+        let frames = 0;
+        const begin = () => {
+          if (timer === 0) return;
+          clearTimeout(timer);
+          timer = 0;
+          // Whatever goes wrong here, the veil must not stay up over a working app.
+          try {
+            enter(root, fish, mark);
+          } catch (error) {
+            console.error('[glass-theme] entry failed', error);
+            lift();
+          }
+        };
+        const count = () => {
+          frames += 1;
+          if (frames >= WARM_FRAMES) begin();
+          else if (timer !== 0) requestAnimationFrame(count);
+        };
+        timer = setTimeout(begin, WARM_MS);
+        requestAnimationFrame(count);
+      };
+      /** The veil stands only until the start page exists, and then the page is live underneath. */
+      const waitForHome = () => {
+        timer = 0;
+        if (document.querySelector(SPINNER)) {
+          goneAt = 0;
+        } else {
+          goneAt ||= performance.now();
+          const root = rootOf();
+          const fish = fishOf(root);
+          const mark = markOf();
+          if (root?.dataset.phase === 'hero' && fish && mark) return warm(root, fish, mark);
+          if (root?.dataset.phase === 'active' || performance.now() - goneAt >= GIVE_UP_MS) return lift();
+        }
+        timer = setTimeout(waitForHome, 16);
+      };
+
+      /* ── Continuity ────────────────────────────────────────────────────── */
+      /** The turns on screen, which leave the page with the conversation. Only those: a long chat is heavy. */
+      const onScreen = (root) => {
+        const frame = root.getBoundingClientRect();
+        return [...root.querySelectorAll('[data-chat-turn]')]
+          .filter((node) => !node.parentElement.closest('[data-chat-turn]'))
+          .map((node) => ({ node, box: node.getBoundingClientRect() }))
+          .filter(({ box }) => box.bottom > frame.top && box.top < frame.bottom);
+      };
+      /** Lays them out where they stood, over the new page, and fades them from there. */
+      const dissolve = (root, turns) => {
+        const frame = root.getBoundingClientRect();
+        const sheet = document.createElement('div');
+        sheet.setAttribute('data-lg-leaving', '');
+        sheet.setAttribute('aria-hidden', 'true');
+        sheet.inert = true;
+        sheet.style.cssText = 'position:absolute;inset:0;overflow:hidden;pointer-events:none';
+        for (const { node, box } of turns) {
+          node.style.cssText += `;position:absolute;left:${box.left - frame.left}px;top:${box.top - frame.top}px;width:${box.width}px;margin:0`;
+          sheet.append(node);
+        }
+        root.prepend(sheet);
+        const end = reducedMotion.matches ? { opacity: 0 } : { opacity: 0, translate: '0 -10px' };
+        const start = reducedMotion.matches ? { opacity: 1 } : { opacity: 1, translate: '0 0' };
+        return { sheet, animation: sheet.animate([start, end], { duration: DISSOLVE_MS, easing: 'ease-out', fill: 'forwards' }) };
+      };
+      const back = (root) => {
+        const card = root.querySelector('[data-composer-card]');
+        if (!card) return;
+        const before = lastBox && performance.now() - lastBox.at < FRESH_MS ? lastBox : null;
+        lastBox = null;
+        const ghost = before?.turns.length ? dissolve(root, before.turns) : null;
+        const calm = reducedMotion.matches;
+        const reach = calm ? 0 : 8;
+        let flying = null;
+        if (before && !calm) {
+          const { easing, ms } = appleSpring();
+          const to = card.getBoundingClientRect();
+          flying = card.animate(
+            [{ translate: `${(before.box.left - to.left).toFixed(1)}px ${(before.box.top - to.top).toFixed(1)}px` }, { translate: '0 0' }],
+            { duration: Math.min(ms * 1.1, 400), easing },
+          );
+          glide = { animation: flying, from: before.box, to };
+        }
+        play([
+          flying,
+          ghost?.animation,
+          arrive(root.querySelector("[class*='WOwLGG_root']"), calm ? 0 : 40, SHORT_PART_MS, reach),
+          arrive(root.querySelector("[class*='an3WzG_heroWorkspaceRow']"), calm ? 0 : 80, SHORT_PART_MS, reach),
+        ], null, () => {
+          ghost?.sheet.remove();
+          if (glide?.animation === flying) glide = null;
+        });
+      };
+      /** The page changed under a gliding composer: carry on from where it had got to. */
+      const reland = (root) => {
+        const card = root?.querySelector('[data-composer-card]');
+        if (!glide || !card) return;
+        const { animation, from, to } = glide;
+        const rest = 1 - (animation.effect.getComputedTiming().progress ?? 1);
+        const x = to.left + (from.left - to.left) * rest;
+        const y = to.top + (from.top - to.top) * rest;
+        glide = null;
+        animation.cancel();
+        const box = card.getBoundingClientRect();
+        const { easing, ms } = appleSpring();
+        card.animate([{ translate: `${(x - box.left).toFixed(1)}px ${(y - box.top).toFixed(1)}px` }, { translate: '0 0' }], { duration: Math.min(ms, 360), easing });
+      };
+      // Once the page has changed the composer's old place is gone, so note it as the hand moves.
+      const note = (event) => {
+        if (event.type === 'keydown' && !event.ctrlKey && !event.metaKey) return;
+        const root = rootOf();
+        // Opening a chat builds a new page too, and nothing else would have told us.
+        phase = root?.dataset.phase ?? phase;
+        const card = phase === 'active' ? root?.querySelector('[data-composer-card]') : null;
+        if (!card) return;
+        lastBox = { at: performance.now(), box: card.getBoundingClientRect(), turns: onScreen(root) };
+        // A new session mounts a new start page rather than changing the phase of this one.
+        clearTimeout(watching);
+        built.observe(document.body, { childList: true, subtree: true });
+        watching = setTimeout(() => {
+          built.disconnect();
+          lastBox = null;
+        }, FRESH_MS);
+      };
+      const onPhase = () => {
+        const root = rootOf();
+        const now = root?.dataset.phase;
+        if (now === undefined || now === phase) return;
+        const was = phase;
+        phase = now;
+        if (now !== 'hero') {
+          settle();
+          reland(root);
+        }
+        if (now === 'hero' && was === 'active' && !off()) back(root);
+      };
+      const built = new MutationObserver(onPhase);
+
+      // Only a real launch: a refresh keeps the veil's plain fade.
+      const cold = performance.getEntriesByType('navigation')[0]?.type === 'navigate';
+      if (cold && document.querySelector('#dsh-boot') && document.querySelector(SPINNER) && !reducedMotion.matches && !off()) {
+        html.dataset.lgEntry = 'hold';
+        waitForHome();
+      }
+      for (const type of ['pointerdown', 'wheel']) document.addEventListener(type, hurry, { capture: true, passive: true });
+      document.addEventListener('keydown', hurry, true);
+      document.addEventListener('pointerdown', note, { capture: true, passive: true });
+      document.addEventListener('keydown', note, true);
+      window.addEventListener('resize', settle);
+      const observer = new MutationObserver(onPhase);
+      observer.observe(document.body, { attributes: true, attributeFilter: ['data-phase'], subtree: true });
+      return () => {
+        clearTimeout(timer);
+        clearTimeout(watching);
+        for (const type of ['pointerdown', 'wheel']) document.removeEventListener(type, hurry, { capture: true });
+        document.removeEventListener('keydown', hurry, true);
+        document.removeEventListener('pointerdown', note, { capture: true });
+        document.removeEventListener('keydown', note, true);
+        window.removeEventListener('resize', settle);
+        observer.disconnect();
+        built.disconnect();
+        playing?.animations.forEach((animation) => animation.cancel());
+        lift();
+      };
+    }
+
+    function mountLaunch() {
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+      /** Long enough for a slow Host to answer, short enough not to match a later change. */
+      const ARMED_MS = 1500;
+      let armed = null;
+      const rootOf = () => document.querySelector("[class*='an3WzG_root']");
+      const still = () => reducedMotion.matches || document.documentElement.dataset.lgMotion === 'off';
+      const arm = () => {
+        const root = rootOf();
+        if (root?.dataset.phase !== 'hero' || still()) return;
+        const card = root.querySelector('[data-composer-card]');
+        if (!card) return;
+        const parts = [...root.querySelectorAll("[class*='WOwLGG_root'], [class*='an3WzG_heroWorkspaceRow']")]
+          .map((part) => ({ copy: part.cloneNode(true), box: part.getBoundingClientRect() }))
+          .filter(({ box }) => box.width > 0 && box.height > 0);
+        armed = { at: performance.now(), box: card.getBoundingClientRect(), parts };
+      };
+      const onKey = (event) => {
+        if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.target instanceof Element && event.target.closest('[data-composer-card]')) arm();
+      };
+      const onDown = (event) => {
+        if (event.target instanceof Element && event.target.closest("[data-composer-card] button[class*='_primary']")) arm();
+      };
+      const launch = (root, from, parts) => {
+        const card = root.querySelector('[data-composer-card]');
+        if (!card) return;
+        const to = card.getBoundingClientRect();
+        const { easing: spring, ms } = appleSpring();
+        // A longer way to travel than a menu opening, so a longer spring.
+        const duration = Math.min(ms * 1.5, PAGE_MS);
+        const dx = from.left + from.width / 2 - (to.left + to.width / 2);
+        const dy = from.top + from.height / 2 - (to.top + to.height / 2);
+        card.animate(
+          [{ translate: `${dx.toFixed(1)}px ${dy.toFixed(1)}px`, scale: (from.width / to.width).toFixed(4) }, { translate: '0 0', scale: '1' }],
+          { duration, easing: spring },
+        );
+        for (const { copy, box } of parts) {
+          copy.style.cssText += `;position:fixed;left:${box.left}px;top:${box.top}px;width:${box.width}px;height:${box.height}px;margin:0;z-index:20;pointer-events:none`;
+          copy.setAttribute('aria-hidden', 'true');
+          document.body.append(copy);
+          const gone = () => copy.remove();
+          copy.animate([{ opacity: 1, translate: '0 0' }, { opacity: 0, translate: '0 -14px' }], { duration: SHORT_PART_MS, easing: 'ease-out', fill: 'forwards' })
+            .finished.then(gone, gone);
+        }
+        // Not the scroll area: the composer lives in it, and fading its parent would cut the
+        // glass off from the page behind it.
+        root.querySelector("[class*='an3WzG_viewArea']")?.animate(
+          [{ opacity: 0, translate: '0 18px' }, { opacity: 1, translate: '0 0' }],
+          { duration: PAGE_MS - 120, delay: 120, easing: RISE, fill: 'backwards' },
+        );
+        window.dispatchEvent(new CustomEvent('dsh-glass:splash', { detail: { left: from.left, top: from.top, width: from.width, height: from.height } }));
+      };
+      const onPhase = () => {
+        if (armed === null) return;
+        const root = rootOf();
+        const phase = root?.dataset.phase;
+        if (phase === 'hero' || phase === undefined) return;
+        const { at, box, parts } = armed;
+        if (phase === 'settling' && performance.now() - at < ARMED_MS) return;
+        armed = null;
+        if (phase === 'active' && performance.now() - at < ARMED_MS) launch(root, box, parts);
+      };
+      document.addEventListener('keydown', onKey, true);
+      document.addEventListener('pointerdown', onDown, { capture: true, passive: true });
+      const observer = new MutationObserver(onPhase);
+      observer.observe(document.body, { attributes: true, attributeFilter: ['data-phase'], subtree: true });
+      return () => {
+        document.removeEventListener('keydown', onKey, true);
+        document.removeEventListener('pointerdown', onDown, { capture: true });
+        observer.disconnect();
       };
     }
 
@@ -2365,7 +3103,8 @@ html[data-lg-motion="off"] body :is([data-menu-material], [role='dialog'], [clas
       ctx.effect(() => {
         // One element per group, in a fixed order, so switching a group off never
         // reorders the cascade.
-        const lessTransparency = window.matchMedia('(prefers-reduced-transparency: reduce)');
+        // Increase Contrast joins in here: its sheets are nearly solid, so a lens would have nothing to bend.
+        const lessTransparency = window.matchMedia('(prefers-reduced-transparency: reduce), (prefers-contrast: more)');
         const sheets = {};
         const sources = { base: BASE_CSS, color: COLOR_CSS, glass: GLASS_CSS, shape: SHAPE_CSS, motion: MOTION_CSS };
         for (const [name, text] of Object.entries(sources)) {
@@ -2384,6 +3123,10 @@ html[data-lg-motion="off"] body :is([data-menu-material], [role='dialog'], [clas
         let lens = null;
         let dropHighlight = null;
         let dropOrigin = null;
+        let dropLaunch = null;
+        let dropWriting = null;
+        let dropEntry = null;
+        let dropDepth = null;
         const dropCheck = mountSelfCheck();
         // Read-only, for tools/smoke.mjs: the self-check report as JSON.
         globalThis.__dshGlassCheck = () => selfCheck.read();
@@ -2405,8 +3148,16 @@ html[data-lg-motion="off"] body :is([data-menu-material], [role='dialog'], [clas
 
           if (current.glass && !dropHighlight) dropHighlight = mountHighlight();
           else if (!current.glass && dropHighlight) { dropHighlight(); dropHighlight = null; }
+          if (current.glass && !dropDepth) dropDepth = mountDepth();
+          else if (!current.glass && dropDepth) { dropDepth(); dropDepth = null; }
           if (current.interaction && !dropOrigin) dropOrigin = mountOrigin();
           else if (!current.interaction && dropOrigin) { dropOrigin(); dropOrigin = null; }
+          if (current.interaction && !dropLaunch) dropLaunch = mountLaunch();
+          else if (!current.interaction && dropLaunch) { dropLaunch(); dropLaunch = null; }
+          if (current.interaction && !dropWriting) dropWriting = mountWriting();
+          else if (!current.interaction && dropWriting) { dropWriting(); dropWriting = null; }
+          if (current.interaction && !dropEntry) dropEntry = mountEntry();
+          else if (!current.interaction && dropEntry) { dropEntry(); dropEntry = null; }
 
           // Not just hidden: with no glass to bend, the map and its observers do not run.
           const wanted = current.glass && current.refraction === 'lens' && lensSupported() && !lessTransparency.matches;
@@ -2458,6 +3209,10 @@ html[data-lg-motion="off"] body :is([data-menu-material], [role='dialog'], [clas
           delete globalThis.__dshGlassCheck;
           dropHighlight?.();
           dropOrigin?.();
+          dropLaunch?.();
+          dropWriting?.();
+          dropEntry?.();
+          dropDepth?.();
           dropTokens?.();
           unpaint();
           for (const element of Object.values(sheets)) element.remove();

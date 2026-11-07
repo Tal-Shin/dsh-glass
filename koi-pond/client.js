@@ -3,7 +3,8 @@
  *
  * The ASCII koi pond as a stand-alone, removable layer. Derived from
  * @cngtn/dsh-cngtn-pond 1.5.1 (MIT, github.com/cngtn/dsh-cngtn-pond): the world,
- * shape, renderer and engine modules are unchanged. Generated from that package;
+ * shape, renderer and engine modules are unchanged but for the splash and nudge the Glass
+ * theme's send animation and typing ask for. Generated from that package;
  * its token layer and shell stylesheet were left out because the look of the
  * shell now belongs to the active theme.
  *
@@ -43,6 +44,8 @@ const __m_world = (() => {
 const TAU = Math.PI * 2;
 const KOI_NODES = 20;
 const RIPPLE_SPEED = 52;
+// Enough to count as fleeing for about half a second, not the full bolt of a splash.
+const WRITING_NUDGE = 0.6;
 
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 const rand = (lo, hi) => lo + Math.random() * (hi - lo);
@@ -378,6 +381,55 @@ class World {
   /** Current settings, for a settings UI to render. */
   getOptions() {
     return { fish: this.fish, young: this.young, palette: this.palette };
+  }
+
+  /**
+   * Something heavy met the water: all of the shape at `box` (canvas space, top-left corner), not
+   * one point of it. Three rings race out from its outline, and koi in reach bolt from its
+   * nearest edge, or from its middle if they were under it.
+   */
+  splash(box) {
+    const t = this.time;
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    this.ripples.push(
+      { x, y, box, born: t, strength: 1, speed: 3.2 },
+      { x, y, box, born: t + 0.16, strength: 0.7, speed: 3.2 },
+      { x, y, box, born: t + 0.34, strength: 0.45, speed: 3.2 },
+    );
+    const reach = Math.max(this.width, this.height) * 0.6;
+    for (const k of this.koi) {
+      const hx = k.nodes[0];
+      const hy = k.nodes[1];
+      const nx = clamp(hx, box.x, box.x + box.width);
+      const ny = clamp(hy, box.y, box.y + box.height);
+      if (Math.hypot(hx - nx, hy - ny) > reach) continue;
+      const under = nx === hx && ny === hy;
+      k.startle = 1;
+      k.fleeX = under ? x : nx;
+      k.fleeY = under ? y : ny;
+    }
+  }
+
+  /**
+   * Someone is writing on the shape at `box`: koi lose interest in the resting cursor, and any
+   * still under it get a nudge out the near side, since steering alone takes a long fish about
+   * twelve seconds and the words are there now. No ring: typing happens too often for one.
+   */
+  writing(box) {
+    this.pointer.active = false;
+    const y = box.y + box.height / 2;
+    const within = (px, py) => px > box.x && px < box.x + box.width && py > box.y && py < box.y + box.height;
+    for (const k of this.koi) {
+      const hx = k.nodes[0];
+      const hy = k.nodes[1];
+      let caught = false;
+      for (let n = 0; n < k.nodes.length && !caught; n += 2) caught = within(k.nodes[n], k.nodes[n + 1]);
+      if (!caught) continue;
+      k.startle = Math.max(k.startle, WRITING_NUDGE);
+      k.fleeX = clamp(hx, box.x, box.x + box.width);
+      k.fleeY = within(hx, hy) ? hy + Math.sign(y - hy || 1) : clamp(hy, box.y, box.y + box.height);
+    }
   }
 
   /** A loose handful thrown at (x, y): each pellet lands a beat apart with its own splash, then drifts and sinks. */
@@ -1569,14 +1621,18 @@ class KoiRenderer {
       const age = world.time - rp.born;
       const life = rippleLife(rp);
       const fade = Math.pow(1 - age / life, 1.5) * rp.strength;
+      // A ring is every point at one distance from the box; a plain ripple's box has no size,
+      // which makes that a circle. Past a corner the distance curves, so rings stay rounded.
+      const hw = rp.box ? rp.box.width / 2 : 0;
+      const hh = rp.box ? rp.box.height / 2 : 0;
       for (let ring = 0; ring < 2; ring++) {
-        const radius = Math.max(0, age - ring * 0.45) * RIPPLE_SPEED * (0.7 + 0.5 * rp.strength);
+        const radius = Math.max(0, age - ring * 0.45) * RIPPLE_SPEED * (0.7 + 0.5 * rp.strength) * (rp.speed ?? 1);
         if (radius < 2) continue;
         const band = cw * 0.6;
-        const c0 = Math.max(0, Math.floor((rp.x - radius - cw) / cw));
-        const c1 = Math.min(cols - 1, Math.floor((rp.x + radius + cw) / cw));
-        const r0 = Math.max(0, Math.floor((rp.y - radius - ch) / ch));
-        const r1 = Math.min(rows - 1, Math.floor((rp.y + radius + ch) / ch));
+        const c0 = Math.max(0, Math.floor((rp.x - hw - radius - cw) / cw));
+        const c1 = Math.min(cols - 1, Math.floor((rp.x + hw + radius + cw) / cw));
+        const r0 = Math.max(0, Math.floor((rp.y - hh - radius - ch) / ch));
+        const r1 = Math.min(rows - 1, Math.floor((rp.y + hh + radius + ch) / ch));
         const alpha = fade * (ring === 0 ? 0.55 : 0.3);
         for (let r = r0; r <= r1; r++) {
           for (let c = c0; c <= c1; c++) {
@@ -1584,9 +1640,11 @@ class KoiRenderer {
             if (cellGlyph[i]) continue;
             const dx = c * cw + cw / 2 - rp.x;
             const dy = r * ch + ch / 2 - rp.y;
-            const d = Math.hypot(dx, dy);
-            if (Math.abs(d - radius) > band) continue;
-            const glyph = ring === 1 ? '.' : lineGlyph(-dy, dx);
+            const ox = Math.max(Math.abs(dx) - hw, 0);
+            const oy = Math.max(Math.abs(dy) - hh, 0);
+            const d = Math.hypot(ox, oy);
+            if (d === 0 || Math.abs(d - radius) > band) continue; // nothing rings under the box itself
+            const glyph = ring === 1 ? '.' : lineGlyph(-Math.sign(dy) * oy, Math.sign(dx) * ox);
             this.glyphAt(i, glyph, palette.water, alpha);
           }
         }
@@ -1663,6 +1721,8 @@ const STEP = 1 / 60;
 const MAX_STEPS = 4;
 // Content over the pond carries this attribute; koi steer around it and fade beneath it.
 const AVOID_TARGETS = '[data-cngtn-avoid]';
+// Koi swim out from under this for as long as it is marked, and nothing fades.
+const STEER_TARGETS = '[data-koi-steer]';
 // Re-measure the content boxes this often to follow layout shifts. In time, not
 // frames, so a 240 Hz display does not pay four times what a 60 Hz one does.
 const MEASURE_MS = 250;
@@ -1734,7 +1794,8 @@ class PondSurface {
     this.disposed = false;
     this.hidden = document.hidden;
     this.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-    this.reducedTransparency = window.matchMedia('(prefers-reduced-transparency: reduce)');
+    // A forced-colors palette has no place for a pond either: it would only sit behind the text.
+    this.reducedTransparency = window.matchMedia('(prefers-reduced-transparency: reduce), (forced-colors: active)');
   }
 
   /** Subclass fields do not exist during super(), so each subclass calls this last. */
@@ -1750,6 +1811,8 @@ class PondSurface {
     this.reducedTransparency.addEventListener('change', this.onPreferenceChange);
     window.addEventListener('pointermove', this.onPointerMove, { passive: true });
     window.addEventListener('click', this.onClick);
+    window.addEventListener('dsh-glass:splash', this.onSplash);
+    window.addEventListener('dsh-glass:writing', this.onWriting);
     document.addEventListener('scroll', this.onAnyScroll, { capture: true, passive: true });
     document.documentElement.addEventListener('pointerleave', this.onPointerLeave);
     window.addEventListener('blur', this.onPointerLeave);
@@ -1766,6 +1829,8 @@ class PondSurface {
     this.reducedTransparency.removeEventListener('change', this.onPreferenceChange);
     window.removeEventListener('pointermove', this.onPointerMove);
     window.removeEventListener('click', this.onClick);
+    window.removeEventListener('dsh-glass:splash', this.onSplash);
+    window.removeEventListener('dsh-glass:writing', this.onWriting);
     document.removeEventListener('scroll', this.onAnyScroll, { capture: true });
     document.documentElement.removeEventListener('pointerleave', this.onPointerLeave);
     window.removeEventListener('blur', this.onPointerLeave);
@@ -1819,7 +1884,7 @@ class PondSurface {
       // boxes only dim what is drawn beneath them; adding them to `avoid` would
       // let the composer's full-width seat merge with the sidebar into one wall
       // and push every fish out of the centre column.
-      avoid: [...own, ...opaque],
+      avoid: [...own, ...opaque, ...this.rectsFor([STEER_TARGETS])],
       groups: [
         // The site's own contract: faint, so a koi reads as being under the words.
         { boxes: own, floor: 0.15 },
@@ -1854,6 +1919,25 @@ class PondSurface {
   onPointerMove = (e) => {
     this.pointerMoved(this.toLocal(e), e);
   };
+
+  // glass-theme sends this when the composer leaves the start page; alone, this bundle never hears it.
+  onSplash = (e) => {
+    const box = this.boxFrom(e);
+    if (box) this.splash(box);
+  };
+
+  onWriting = (e) => {
+    const box = this.boxFrom(e);
+    if (box) this.writing(box);
+  };
+
+  boxFrom(e) {
+    if (this.reducedMotion.matches || this.reducedTransparency.matches) return null;
+    const { left, top, width, height } = e.detail ?? {};
+    if (!(width > 0 && height > 0)) return null;
+    const { x, y } = this.toLocal({ clientX: left, clientY: top });
+    return { x, y, width, height };
+  }
 
   onPointerLeave = () => {
     this.pointerLeft();
@@ -2066,6 +2150,14 @@ class PondEngine extends PondSurface {
     this.report();
   }
 
+  splash(box) {
+    this.world.splash(box);
+  }
+
+  writing(box) {
+    this.world.writing(box);
+  }
+
   /** Exposed for the smoke test: step the simulation without a browser clock. */
   static step(world, seconds) {
     const steps = Math.round(seconds / STEP);
@@ -2211,6 +2303,12 @@ function workerMain(lib) {
           world.feed(m.x, m.y);
           report(false);
           break;
+        case 'splash':
+          world.splash(m.box);
+          break;
+        case 'writing':
+          world.writing(m.box);
+          break;
         case 'scroll':
           scrollingUntil = performance.now() + m.settle;
           break;
@@ -2345,6 +2443,14 @@ class WorkerPond extends PondSurface {
     this.worker.postMessage({ type: 'feed', x, y });
   }
 
+  splash(box) {
+    this.worker.postMessage({ type: 'splash', box });
+  }
+
+  writing(box) {
+    this.worker.postMessage({ type: 'writing', box });
+  }
+
   scrolled() {
     const now = performance.now();
     if (now - this.lastScrollPost < 50) return;
@@ -2399,7 +2505,7 @@ function buildStyles() {
   -webkit-mask-image: linear-gradient(to bottom, transparent 0, transparent 34px, #000 76px);
   mask-image: linear-gradient(to bottom, transparent 0, transparent 34px, #000 76px);
 }
-@media (prefers-reduced-transparency: reduce), print {
+@media (prefers-reduced-transparency: reduce), (forced-colors: active), print {
   #cngtn-pond-canvas { display: none; }
 }
 `;

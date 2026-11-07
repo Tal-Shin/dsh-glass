@@ -212,7 +212,7 @@ window.__ModuleLoader__.load({
   font-size: 13px;
   line-height: 20px;
 }
-.wb-dot, .wb-mark { corner-shape: round; }
+.wb-dot, .wb-mark, .wb-bar, .wb-tag, .wb-link, .wb-button { corner-shape: round; }
 .wb-section { display: flex; flex-direction: column; padding: 12px 0; }
 .wb-section + .wb-section { border-top: .5px solid var(--dsw-alias-border-l2); }
 .wb-state {
@@ -263,7 +263,7 @@ button.wb-row:active { background: var(--dsw-alias-interactive-bg-active); }
 .wb-muted { color: var(--dsw-alias-label-caption); font-size: 12px; line-height: 18px; }
 .wb-notice { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .wb-notice[data-tone='error'] > span { color: var(--dsw-alias-state-error-primary); }
-.wb-link { flex: none; padding: 0 6px; border: 0; border-radius: 6px; background: transparent; color: var(--dsw-alias-link); font: inherit; font-size: 12px; cursor: pointer; }
+.wb-link { flex: none; padding: 0 6px; border: 0; border-radius: 999px; background: transparent; color: var(--dsw-alias-link); font: inherit; font-size: 12px; cursor: pointer; }
 .wb-link:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .wb-mark[data-status='failed'], .wb-mark[data-status='error'] { border-color: var(--dsw-alias-state-error-primary); }
 .wb-mark {
@@ -307,7 +307,7 @@ button.wb-row:active { background: var(--dsw-alias-interactive-bg-active); }
 .wb-indent { padding: 2px 6px 6px; }
 .wb-nested { display: flex; flex-direction: column; padding-left: 12px; }
 .wb-subheading { padding-top: 10px; color: var(--dsw-alias-label-secondary); font-size: 12px; font-weight: 400; }
-.wb-tag { margin-right: 6px; padding: 0 5px; border-radius: 5px; background: var(--dsw-alias-interactive-bg-active); color: var(--dsw-alias-label-secondary); font-size: 11px; }
+.wb-tag { margin-right: 6px; padding: 0 6px; border-radius: 999px; background: var(--dsw-alias-interactive-bg-active); color: var(--dsw-alias-label-secondary); font-size: 11px; }
 .wb-danger { color: var(--dsw-alias-state-error-primary); }
 .wb-group[data-reverted='true'] .wb-label, .wb-row[data-reverted='true'] .wb-label { color: var(--dsw-alias-label-secondary); text-decoration: line-through; }
 .wb-diff {
@@ -343,7 +343,7 @@ button.wb-row:active { background: var(--dsw-alias-interactive-bg-active); }
 .wb-button {
   padding: 3px 12px;
   border: 0;
-  border-radius: 7px;
+  border-radius: 999px;
   background: var(--dsw-alias-interactive-bg-active);
   color: var(--dsw-alias-label-primary);
   font: inherit;
