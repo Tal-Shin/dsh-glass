@@ -18,6 +18,10 @@ Compared with the source package:
 ## Credit
 
 The pond engine comes from [dsh-cngtn-pond](https://github.com/cngtn/dsh-cngtn-pond)
-1.5.1 by cngtn, MIT licensed. The `world`, `shape` and `renderer` modules in
-`client.js` are unchanged; the `engine` loop caps painting at 60 fps, or 24 fps while
-the page scrolls, because every paint makes the glass above re-blur.
+1.5.1 by cngtn, MIT licensed. The `shape` module in `client.js` is unchanged. The pond
+paints only as often as the eye can tell: 60 times a second when calm, rising to at most
+120 while koi chase or bolt or splash rings spread, so the fastest thing moves about a
+pixel between paints; 24 while the page scrolls. It never paints every frame of a
+high-refresh display, because every paint makes the glass above re-blur. The world steps
+once per paint, and the wander and the wake are scaled by time, so the fish behave the
+same at any paint rate.

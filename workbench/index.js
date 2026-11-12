@@ -49,7 +49,8 @@ async function readBytes(path) {
     const info = await handle.stat();
     if (!info.isFile()) return 'other';
     if (info.size > MAX_BYTES) return 'oversized';
-    return await handle.readFile();
+    const bytes = await handle.readFile();
+    return bytes.length > MAX_BYTES ? 'oversized' : bytes;
   } finally {
     await handle.close();
   }
@@ -195,6 +196,11 @@ export function apply(ctx) {
       data = null;
     }
     if (!data || !Array.isArray(data.turns)) data = { version: 1, sessionId, cwd: null, turns: [], reverts: [] };
+    // Older histories marked whole turns. Give their files the same marker so a
+    // partially successful undo can retain exactly the files still reverted.
+    for (const turn of data.turns) {
+      if (turn.revertedAt) for (const file of turn.files) file.revertedAt ??= turn.revertedAt;
+    }
     loaded.set(sessionId, data);
     return data;
   };
@@ -311,7 +317,7 @@ export function apply(ctx) {
     const targets = new Map();
     for (const turn of data.turns) {
       if (turn.turn < turnNumber || turn.revertedAt) continue;
-      for (const file of turn.files) if (!targets.has(file.path)) targets.set(file.path, { path: file.path, display: file.display, restore: file.before });
+      for (const file of turn.files) if (!file.revertedAt && !targets.has(file.path)) targets.set(file.path, { path: file.path, display: file.display, restore: file.before });
     }
     const known = lastKnown(data);
     const items = [];
@@ -322,17 +328,28 @@ export function apply(ctx) {
         ...target,
         now,
         drift: now !== undefined && expected !== undefined && !sameSide(now, expected),
-        blocked: target.restore.kind === 'oversized' || now === undefined ? true : undefined,
+        blocked: target.restore.kind === 'oversized' || now === undefined || now.kind === 'oversized' ? true : undefined,
+        reason: target.restore.kind === 'oversized' ? 'oversized' : now === undefined ? 'unreadable' : now.kind === 'oversized' ? 'backup-too-large' : undefined,
         action: target.restore.kind === 'absent' ? 'delete' : now?.kind === 'absent' ? 'recreate' : 'restore',
       });
     }
     return items;
   };
 
+  const updateTurnMarkers = (data) => {
+    for (const turn of data.turns) {
+      if (turn.files.length && turn.files.every((file) => file.revertedAt)) turn.revertedAt = Math.max(...turn.files.map((file) => file.revertedAt));
+      else delete turn.revertedAt;
+    }
+  };
+  // Markers must remain distinct even when two requests finish in one millisecond.
+  const timestamp = (data) => Math.max(Date.now(), ...(data.reverts ?? []).map((item) => item.at + 1), ...(data.undone ?? []).map((item) => item.at + 1));
+  const failure = (item, reason) => ({ display: item.display, reason });
+
   const json = (value, status = 200) => Response.json(value, { status, headers: { 'cache-control': 'no-store' } });
   const params = (request) => new URL(request.url).searchParams;
   const number = (value) => (value !== null && /^\d+$/.test(value) ? Number(value) : undefined);
-  const publicFile = (file) => ({ display: file.display, added: file.added, deleted: file.deleted, binary: file.binary, oversized: file.oversized, created: file.before.kind === 'absent' || undefined, removed: file.after.kind === 'absent' || undefined });
+  const publicFile = (file) => ({ display: file.display, added: file.added, deleted: file.deleted, binary: file.binary, oversized: file.oversized, revertedAt: file.revertedAt, created: file.before.kind === 'absent' || undefined, removed: file.after.kind === 'absent' || undefined });
 
   const routes = {
     '/api/workbench.history': ['GET', async (request) => {
@@ -366,7 +383,7 @@ export function apply(ctx) {
       if (!id || turnNumber === undefined) return json({ error: 'coordinates' }, 400);
       if (running(id)) return json({ error: 'running' }, 409);
       const items = await plan(await load(id), turnNumber);
-      return json({ files: items.map((item) => ({ display: item.display, action: item.action, drift: item.drift || undefined, blocked: item.blocked })) });
+      return json({ files: items.map((item) => ({ display: item.display, action: item.action, drift: item.drift || undefined, blocked: item.blocked, reason: item.reason })) });
     }],
     '/api/workbench.revert': ['POST', async (request) => {
       const query = params(request);
@@ -377,27 +394,43 @@ export function apply(ctx) {
       return serial(id, async () => {
         if (running(id)) return json({ error: 'running' }, 409);
         const data = await load(id);
-        const items = (await plan(data, turnNumber)).filter((item) => !item.blocked);
+        const items = await plan(data, turnNumber);
         if (items.length === 0) return json({ error: 'nothing' }, 409);
-        if (!force && items.some((item) => item.drift)) return json({ error: 'drift', files: items.filter((item) => item.drift).map((item) => item.display) }, 409);
+        if (!force && items.some((item) => !item.blocked && item.drift)) return json({ error: 'drift', files: items.filter((item) => !item.blocked && item.drift).map((item) => item.display) }, 409);
         const done = [];
+        const failures = [];
         for (const item of items) {
+          if (item.blocked) { failures.push(failure(item, item.reason)); continue; }
+          let bytes;
+          try {
+            bytes = await blobBytes(item.restore);
+          } catch {
+            failures.push(failure(item, 'missing-copy'));
+            continue;
+          }
           try {
             if (item.restore.kind === 'absent') await unlink(item.path).catch((error) => { if (!missing(error)) throw error; });
             else {
               await mkdir(dirname(item.path), { recursive: true });
-              await writeFile(item.path, await blobBytes(item.restore));
+              await writeFile(item.path, bytes);
             }
             done.push({ path: item.path, display: item.display, previous: item.now, restored: item.restore });
           } catch (error) {
+            failures.push(failure(item, 'write-failed'));
             warn(`could not restore ${item.path}`, error);
           }
         }
-        const at = Date.now();
-        data.reverts = [...(data.reverts ?? []), { at, turn: turnNumber, files: done }].slice(-20);
-        for (const turn of data.turns) if (turn.turn >= turnNumber && !turn.revertedAt) turn.revertedAt = at;
-        await save(id, data);
-        return json({ restored: done.length, failed: items.length - done.length });
+        if (done.length) {
+          const at = timestamp(data);
+          const paths = new Set(done.map((file) => file.path));
+          data.reverts = [...(data.reverts ?? []), { at, turn: turnNumber, files: done }].slice(-20);
+          for (const turn of data.turns) if (turn.turn >= turnNumber) {
+            for (const file of turn.files) if (!file.revertedAt && paths.has(file.path)) file.revertedAt = at;
+          }
+          updateTurnMarkers(data);
+          await save(id, data);
+        }
+        return json({ restored: done.length, failed: failures.length, failures });
       });
     }],
     '/api/workbench.undo-revert': ['POST', async (request) => {
@@ -410,35 +443,52 @@ export function apply(ctx) {
         const data = await load(id);
         const last = data.reverts?.[data.reverts.length - 1];
         if (!last) return json({ error: 'nothing' }, 409);
+        const items = [];
+        for (const file of last.files) {
+          const now = await capture(file.path).catch(() => undefined);
+          items.push({ ...file, now, reason: !file.previous || file.previous.kind === 'oversized' ? 'missing-copy' : now === undefined ? 'unreadable' : now.kind === 'oversized' ? 'backup-too-large' : undefined });
+        }
         // A file changed since the revert wrote it (a new turn, an edit of your own) is reported first.
         if (!force) {
-          const drifted = [];
-          for (const file of last.files) {
-            const now = await capture(file.path).catch(() => undefined);
-            if (now !== undefined && !sameSide(now, file.restored)) drifted.push(file.display);
-          }
+          const drifted = items.filter((file) => !file.reason && !sameSide(file.now, file.restored)).map((file) => file.display);
           if (drifted.length > 0) return json({ error: 'drift', files: drifted }, 409);
         }
-        let restored = 0;
-        for (const file of last.files) {
-          if (!file.previous || file.previous.kind === 'oversized') continue;
+        const done = [];
+        const failures = [];
+        for (const file of items) {
+          if (file.reason) { failures.push(failure(file, file.reason)); continue; }
+          let bytes;
+          try {
+            bytes = await blobBytes(file.previous);
+          } catch {
+            failures.push(failure(file, 'missing-copy'));
+            continue;
+          }
           try {
             if (file.previous.kind === 'absent') await unlink(file.path).catch((error) => { if (!missing(error)) throw error; });
             else {
               await mkdir(dirname(file.path), { recursive: true });
-              await writeFile(file.path, await blobBytes(file.previous));
+              await writeFile(file.path, bytes);
             }
-            restored++;
+            done.push(file);
           } catch (error) {
+            failures.push(failure(file, 'write-failed'));
             warn(`could not undo ${file.path}`, error);
           }
         }
-        data.reverts.pop();
-        for (const turn of data.turns) if (turn.revertedAt === last.at) delete turn.revertedAt;
-        // What undo wrote is now the last known state of those paths.
-        data.undone = [...(data.undone ?? []), { at: Date.now(), files: last.files.filter((file) => file.previous).map((file) => ({ path: file.path, previous: file.previous })) }].slice(-20);
-        await save(id, data);
-        return json({ restored });
+        if (done.length) {
+          const paths = new Set(done.map((file) => file.path));
+          last.files = last.files.filter((file) => !paths.has(file.path));
+          if (last.files.length === 0) data.reverts.pop();
+          for (const turn of data.turns) for (const file of turn.files) {
+            if (file.revertedAt === last.at && paths.has(file.path)) delete file.revertedAt;
+          }
+          updateTurnMarkers(data);
+          // Only successful writes become the last known state; failures stay retryable.
+          data.undone = [...(data.undone ?? []), { at: timestamp(data), files: done.map((file) => ({ path: file.path, previous: file.previous })) }].slice(-20);
+          await save(id, data);
+        }
+        return json({ restored: done.length, failed: failures.length, failures });
       });
     }],
   };

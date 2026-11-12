@@ -1,5 +1,5 @@
 /**
- * boot-veil — Host half.
+ * Startup veil owned by glass-theme.
  *
  * Covers the shell's own loading card with a boot screen matched to glass-theme
  * while the client modules load and mount.
@@ -174,9 +174,7 @@ function readTheme() {
   return 'system'
 }
 
-export const inject = ['webServer']
-
-export function apply(ctx) {
+export function installBootVeil(ctx) {
   ctx.on('webserver/index-inject', (table) => {
     table.push(
       { kind: 'style', text: STYLE },

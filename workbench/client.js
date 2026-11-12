@@ -31,11 +31,14 @@ window.__ModuleLoader__.load({
         diffLoading: '正在读取差异…', diffMissing: '这份差异的副本已被清理', diffTruncated: '差异较长，只显示了前面一部分',
         created: '新建', removed: '已删除', earlier: '更早的轮次', turnFiles: '第 {turn} 轮 · {count} 个文件', revertedTag: '已回退',
         revertTurn: '回退到这一轮之前', revertChecking: '正在核对文件…', revertPlan: '将把 {count} 个文件恢复到第 {turn} 轮之前的样子。',
-        revertDrift: '这些文件在 AI 改完之后又被改过，回退会覆盖这些改动：', revertBlocked: '另有 {count} 个文件太大，没有留副本，不会回退。',
+        revertDrift: '这些文件在 AI 改完之后又被改过，回退会覆盖这些改动：', revertBlocked: '另有 {count} 个文件无法安全备份或恢复，将跳过。',
         revertConfirm: '确定回退', cancel: '取消', dismiss: '关闭', reverting: '正在恢复文件…',
-        reverted: '已回退到第 {turn} 轮之前 · {count} 个文件', revertedHint: 'AI 还不知道文件被回退了，继续对话时可以告诉它。回退前的内容已留副本，可以撤销。',
+        reverted: '已回退第 {turn} 轮起的 {count} 个文件', revertedHint: 'AI 还不知道文件被回退了，继续对话时可以告诉它。回退前的内容已留副本，可以撤销。',
         undo: '撤销', undoDrift: '这些文件在回退之后又改过，撤销会覆盖这些改动：', undoConfirm: '仍要撤销',
         revertRunning: '这一轮还在运行，结束后再回退', revertFailed: '回退没有完成，请重试', revertNothing: '没有可以回退的文件',
+        restorePartial: '已恢复 {restored} 个文件，另有 {failed} 个文件未完成，可以重试。',
+        failureOversized: '原文件超过备份上限，没有副本', failureBackup: '当前文件超过 2 MB，无法完整备份',
+        failureUnreadable: '无法读取或备份当前文件', failureMissing: '恢复所需的副本缺失或无法读取', failureWrite: '无法写入或删除文件',
         more: '还有 {count} 项', showAll: '展开全部', showLess: '收起', subagentFailed: '失败', reviewAll: '查看全部改动', binary: '二进制', oversized: '文件过大',
         plan: '计划', openPlan: '查看计划', tasks: '任务', tasksDone: '{done} / {total} 完成',
         subagents: '子智能体', subagentRunning: '运行中', subagentDone: '已结束', tools: '工具',
@@ -53,11 +56,14 @@ window.__ModuleLoader__.load({
         diffLoading: 'Loading diff…', diffMissing: 'The copies behind this diff were cleaned up', diffTruncated: 'Long diff; only the first part is shown',
         created: 'New', removed: 'Deleted', earlier: 'Earlier turns', turnFiles: 'Turn {turn} · {count} files', revertedTag: 'Reverted',
         revertTurn: 'Revert to before this turn', revertChecking: 'Checking files…', revertPlan: 'Puts {count} files back to how they were before turn {turn}.',
-        revertDrift: 'These files changed after the agent last wrote them; reverting overwrites those changes:', revertBlocked: '{count} more files were too large to copy and stay as they are.',
+        revertDrift: 'These files changed after the agent last wrote them; reverting overwrites those changes:', revertBlocked: '{count} more files cannot be safely backed up or restored and will be skipped.',
         revertConfirm: 'Revert', cancel: 'Cancel', dismiss: 'Dismiss', reverting: 'Restoring files…',
-        reverted: 'Reverted to before turn {turn} · {count} files', revertedHint: 'The agent does not know the files were reverted; tell it when you continue. What was overwritten is kept, so this can be undone.',
+        reverted: 'Reverted {count} files from turn {turn} onward', revertedHint: 'The agent does not know the files were reverted; tell it when you continue. What was overwritten is kept, so this can be undone.',
         undo: 'Undo', undoDrift: 'These files changed after the revert; undoing overwrites those changes:', undoConfirm: 'Undo anyway',
         revertRunning: 'This turn is still running; revert once it ends', revertFailed: 'The revert did not finish; try again', revertNothing: 'Nothing to revert',
+        restorePartial: 'Restored {restored} files; {failed} files are unfinished and can be retried.',
+        failureOversized: 'The original exceeded the backup limit and has no copy', failureBackup: 'The current file exceeds 2 MB and cannot be fully backed up',
+        failureUnreadable: 'Cannot read or back up the current file', failureMissing: 'The copy needed for restoration is missing or unreadable', failureWrite: 'Cannot write or delete the file',
         more: '{count} more', showAll: 'Show all', showLess: 'Show less', subagentFailed: 'Failed', reviewAll: 'Review all changes', binary: 'Binary', oversized: 'Too large',
         plan: 'Plan', openPlan: 'Open plan', tasks: 'Tasks', tasksDone: '{done} of {total} done',
         subagents: 'Subagents', subagentRunning: 'Running', subagentDone: 'Finished', tools: 'Tools',
@@ -160,17 +166,18 @@ window.__ModuleLoader__.load({
         if (!marker) return undefined;
         const seq = marker.split(':')[0];
         const controller = new AbortController();
+        const commit = (next) => { if (!controller.signal.aborted) setState(next); };
         const query = new URLSearchParams({ sessionId, seq });
         fetch(`api/changes.summary?${query}`, { signal: controller.signal })
           .then(async (response) => {
-            if (response.status === 404 || response.status === 410) return setState({ key, status: 'expired', data: null });
+            if (response.status === 404 || response.status === 410) return commit({ key, status: 'expired', data: null });
             if (!response.ok) throw new Error(String(response.status));
             const data = await response.json();
             // An empty answer for an announced change set means the run that held it is gone.
-            setState({ key, status: data && Array.isArray(data.files) ? 'ready' : 'expired', data });
+            commit({ key, status: data && Array.isArray(data.files) ? 'ready' : 'expired', data });
           })
           .catch((error) => {
-            if (error?.name !== 'AbortError') setState({ key, status: 'failed', data: null });
+            if (error?.name !== 'AbortError') commit({ key, status: 'failed', data: null });
           });
         return () => controller.abort();
       }, [key]);
@@ -447,20 +454,21 @@ button.wb-row:active { background: var(--dsw-alias-interactive-bg-active); }
         const key = `${sessionId}|${refreshKey}|${attempt}`;
         React.useEffect(() => {
           const controller = new AbortController();
+          const commit = (next) => { if (!controller.signal.aborted) setState(next); };
           fetch(`api/workbench.history?${new URLSearchParams({ sessionId })}`, { signal: controller.signal })
             .then(async (response) => {
               // Without the Host half (an older install, or a host that refused it) the route is missing.
-              if (response.status === 404) return setState({ key, status: 'unavailable', data: null });
+              if (response.status === 404) return commit({ key, status: 'unavailable', data: null });
               if (!response.ok) throw new Error(String(response.status));
-              setState({ key, status: 'ready', data: await response.json() });
+              commit({ key, status: 'ready', data: await response.json() });
             })
             .catch((error) => {
-              if (error?.name !== 'AbortError') setState({ key, status: 'unavailable', data: null });
+              if (error?.name !== 'AbortError') commit({ key, status: 'unavailable', data: null });
             });
           return () => controller.abort();
         }, [key]);
         const reload = React.useCallback(() => setAttempt((n) => n + 1), []);
-        return state.key === key || state.status !== 'loading' ? { ...state, reload } : { status: 'loading', data: null, reload };
+        return state.key === key ? { ...state, reload } : { status: 'loading', data: null, reload };
       }
 
       const query = (values) => new URLSearchParams(Object.fromEntries(Object.entries(values).filter(([, value]) => value !== undefined).map(([k, v]) => [k, String(v)])));
@@ -468,15 +476,17 @@ button.wb-row:active { background: var(--dsw-alias-interactive-bg-active); }
       /** One turn's diff for one file, read when the row opens. */
       function DiffView({ sessionId, turn, index }) {
         const [state, setState] = React.useState({ status: 'loading' });
+        const key = query({ sessionId, turn, index }).toString();
         React.useEffect(() => {
           const controller = new AbortController();
-          fetch(`api/workbench.diff?${query({ sessionId, turn, index })}`, { signal: controller.signal })
+          const commit = (next) => { if (!controller.signal.aborted) setState({ key, ...next }); };
+          fetch(`api/workbench.diff?${key}`, { signal: controller.signal })
             .then((response) => (response.ok ? response.json() : Promise.reject(new Error(String(response.status)))))
-            .then((data) => setState({ status: 'ready', data }))
-            .catch((error) => { if (error?.name !== 'AbortError') setState({ status: 'failed' }); });
+            .then((data) => commit({ status: 'ready', data }))
+            .catch((error) => { if (error?.name !== 'AbortError') commit({ status: 'failed' }); });
           return () => controller.abort();
-        }, [sessionId, turn, index]);
-        if (state.status === 'loading') return h('div', { className: 'wb-muted wb-indent' }, t('diffLoading'));
+        }, [key]);
+        if (state.key !== key || state.status === 'loading') return h('div', { className: 'wb-muted wb-indent' }, t('diffLoading'));
         if (state.status === 'failed') return h('div', { className: 'wb-muted wb-indent' }, t('changesFailed'));
         const { kind, hunks = [], truncated } = state.data;
         if (kind !== 'text') return h('div', { className: 'wb-muted wb-indent' }, t(kind === 'binary' ? 'binary' : kind === 'oversized' ? 'oversized' : 'diffMissing'));
@@ -499,11 +509,20 @@ button.wb-row:active { background: var(--dsw-alias-interactive-bg-active); }
         return h(React.Fragment, null,
           h('button', { type: 'button', className: 'wb-row', title: file.display, 'aria-expanded': String(open), onClick: () => setOpen(!open) },
             h('span', { className: 'wb-label' }, name),
-            h('span', { className: 'wb-meta' }, meta)),
+            h('span', { className: 'wb-meta' }, file.revertedAt ? h('span', { className: 'wb-tag' }, t('revertedTag')) : null, meta)),
           open ? h(DiffView, { sessionId, turn, index: file.index }) : null);
       }
 
       const fileItems = (turn) => turn.files.map((file, index) => ({ ...file, index }));
+
+      function RestoreFailures({ result, onDismiss }) {
+        if (!result?.failed) return null;
+        const reasonKey = { oversized: 'failureOversized', 'backup-too-large': 'failureBackup', unreadable: 'failureUnreadable', 'missing-copy': 'failureMissing', 'write-failed': 'failureWrite' };
+        return h('div', { className: 'wb-confirm', role: 'alert' },
+          h('div', { className: 'wb-warn' }, fill(t('restorePartial'), result)),
+          h('ul', { className: 'wb-muted' }, (result.failures ?? []).map((file, index) => h('li', { key: index }, `${file.display}: ${t(reasonKey[file.reason] ?? 'failureWrite')}`))),
+          onDismiss ? h('button', { type: 'button', className: 'wb-link', onClick: onDismiss }, t('dismiss')) : null);
+      }
 
       /**
        * Put the files back to how they were before a turn. Two steps: the Host lists what it would
@@ -519,7 +538,7 @@ button.wb-row:active { background: var(--dsw-alias-interactive-bg-active); }
             if (!response.ok) throw new Error(String(response.status));
             const { files } = await response.json();
             const usable = files.filter((file) => !file.blocked);
-            if (usable.length === 0) return setPhase({ name: 'error', text: t('revertNothing') });
+            if (usable.length === 0) return setPhase({ name: 'error', text: t('revertNothing'), result: { restored: 0, failed: files.length, failures: files } });
             setPhase({ name: 'confirm', count: usable.length, drift: usable.filter((file) => file.drift).map((file) => file.display), blocked: files.length - usable.length });
           } catch {
             setPhase({ name: 'error', text: t('revertFailed') });
@@ -532,8 +551,9 @@ button.wb-row:active { background: var(--dsw-alias-interactive-bg-active); }
             const response = await fetch(`api/workbench.revert?${query({ sessionId, turn, force: 1 })}`, { method: 'POST' });
             if (response.status === 409) return setPhase({ name: 'error', text: t('revertRunning') });
             if (!response.ok) throw new Error(String(response.status));
+            const result = await response.json();
             setPhase({ name: 'idle' });
-            onDone();
+            onDone(result);
           } catch {
             setPhase({ name: 'error', text: t('revertFailed') });
           }
@@ -542,7 +562,7 @@ button.wb-row:active { background: var(--dsw-alias-interactive-bg-active); }
         if (phase.name === 'busy') return h('div', { className: 'wb-muted wb-indent', role: 'status' }, phase.text);
         if (phase.name === 'error') {
           return h('div', { className: 'wb-muted wb-notice wb-indent', 'data-tone': 'error', role: 'status' },
-            h('span', null, phase.text), h('button', { type: 'button', className: 'wb-link', onClick: cancel }, t('dismiss')));
+            h('span', null, phase.text), h(RestoreFailures, { result: phase.result }), h('button', { type: 'button', className: 'wb-link', onClick: cancel }, t('dismiss')));
         }
         if (phase.name === 'confirm') {
           return h('div', { className: 'wb-confirm', role: 'alertdialog', 'aria-label': t('revertTurn') },
@@ -571,8 +591,9 @@ button.wb-row:active { background: var(--dsw-alias-interactive-bg-active); }
               return setPhase({ name: 'error', text: body.error === 'running' ? t('revertRunning') : t('revertFailed') });
             }
             if (!response.ok) throw new Error(String(response.status));
+            const result = await response.json();
             setPhase({ name: 'idle' });
-            onDone();
+            onDone(result);
           } catch {
             setPhase({ name: 'error', text: t('revertFailed') });
           }
@@ -582,7 +603,8 @@ button.wb-row:active { background: var(--dsw-alias-interactive-bg-active); }
             h('span', null, fill(t('reverted'), { turn: revert.turn, count: revert.count })),
             phase.name === 'idle' ? h('button', { type: 'button', className: 'wb-link', onClick: () => undo(false) }, t('undo')) : null),
           phase.name === 'busy' ? h('div', { className: 'wb-muted' }, t('reverting')) : null,
-          phase.name === 'error' ? h('div', { className: 'wb-muted', 'data-tone': 'error' }, phase.text) : null,
+          phase.name === 'error' ? h('div', { className: 'wb-muted', 'data-tone': 'error' }, phase.text,
+            h('button', { type: 'button', className: 'wb-link', onClick: () => undo(false) }, t('retry'))) : null,
           phase.name === 'confirm' ? h(React.Fragment, null,
             h('div', { className: 'wb-warn' }, t('undoDrift'), h('ul', null, phase.drift.map((path) => h('li', { key: path, title: path }, path)))),
             h('div', { className: 'wb-buttons' },
@@ -608,12 +630,18 @@ button.wb-row:active { background: var(--dsw-alias-interactive-bg-active); }
        * half, or nothing recorded for this session yet) the shell's own summary is shown.
        */
       function Changes({ sessionId, useChat, useSession }) {
+        const [result, setResult] = React.useState(null);
         const marker = useChat(selectChanges);
         const rawTouched = useChat(selectTouched);
         const running = useSession((state) => state.running === true);
         const history = useHistory(sessionId, `${marker}|${rawTouched}|${running}`);
+        const onDone = (next) => { setResult(next?.failed ? next : null); history.reload(); };
+        const failure = h(RestoreFailures, { result, onDismiss: () => setResult(null) });
+        if (history.status === 'loading') return h('section', { className: 'wb-section' },
+          h('div', { className: 'wb-heading' }, t('changes')), failure,
+          h('div', { className: 'wb-muted', role: 'status' }, t('changesLoading')));
         const turns = history.status === 'ready' ? history.data.turns ?? [] : [];
-        if (turns.length === 0) return h(SummaryChanges, { sessionId, useChat });
+        if (turns.length === 0) return h(React.Fragment, null, failure, h(SummaryChanges, { sessionId, useChat }));
         const [latest, ...earlier] = turns;
         const [seq, summaryTurn] = marker ? marker.split(':') : [];
         const lastRevert = history.data.lastRevert;
@@ -621,7 +649,8 @@ button.wb-row:active { background: var(--dsw-alias-interactive-bg-active); }
         return h('section', { className: 'wb-section' },
           h('div', { className: 'wb-heading' }, t('changes'),
             h('small', null, fill(t('changesOf'), { turn: latest.turn }), latest.revertedAt ? ` · ${t('revertedTag')}` : '')),
-          showRevert ? h(Reverted, { sessionId, revert: showRevert, onDone: history.reload }) : null,
+          failure,
+          showRevert ? h(Reverted, { key: lastRevert.at, sessionId, revert: showRevert, onDone }) : null,
           h('div', { className: 'wb-group', 'data-reverted': String(Boolean(latest.revertedAt)) },
             h(Folded, { t, items: fileItems(latest), limit: 4, render: (file) => h(FileRow, { key: file.index, sessionId, turn: latest.turn, file }) }),
             Number(summaryTurn) === latest.turn
@@ -629,12 +658,12 @@ button.wb-row:active { background: var(--dsw-alias-interactive-bg-active); }
                   h('span', { className: 'wb-label wb-action' }, t('reviewAll')),
                   h('span', { className: 'wb-meta' }, fill(t('changed'), { count: latest.files.length })))
               : null,
-            !running && !latest.revertedAt ? h(Revert, { sessionId, turn: latest.turn, onDone: history.reload }) : null),
+            !running && !latest.revertedAt ? h(Revert, { key: latest.turn, sessionId, turn: latest.turn, onDone }) : null),
           earlier.length > 0
             ? h(React.Fragment, null,
                 h('div', { className: 'wb-heading wb-subheading' }, t('earlier')),
                 h('div', { className: 'wb-group' },
-                  h(Folded, { t, items: earlier, limit: 3, render: (turn) => h(EarlierTurn, { key: turn.turn, sessionId, turn, running, onDone: history.reload }) })))
+                  h(Folded, { t, items: earlier, limit: 3, render: (turn) => h(EarlierTurn, { key: turn.turn, sessionId, turn, running, onDone }) })))
             : null);
       }
 
@@ -778,7 +807,7 @@ button.wb-row:active { background: var(--dsw-alias-interactive-bg-active); }
         return h('div', { className: 'wb-page', 'data-workbench-page': '' },
           h(Status, { useSession, values, hasTurns }),
           hasTurns ? h(Context, { values }) : null,
-          hasTurns ? h(Changes, { sessionId, useChat, useSession }) : null,
+          hasTurns ? h(Changes, { key: sessionId, sessionId, useChat, useSession }) : null,
           hasTurns ? h(Plan, { sessionId, useChat, values }) : null,
           hasTurns ? h(Subagents, { sessionId, useSessions }) : null,
           h(Tools, { openTab }));

@@ -1,8 +1,8 @@
 {
   "name": "@tal-shin/dsh-glass-theme",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "type": "module",
-  "description": "Colour, glass, corners and type, and motion for the DSH shell, each switchable on its own.",
+  "description": "Startup screen, colour, glass, corners and type, and motion for the DSH shell.",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
@@ -11,6 +11,7 @@
   },
   "files": [
     "index.js",
+    "boot.js",
     "client.js",
     "cordis.patch.yml",
     "locale/*.json",
@@ -37,7 +38,7 @@
       ]
     },
     "displayName": "Glass Theme",
-    "description": "Colour, glass, corners and motion in one appearance bundle."
+    "description": "Startup screen, colour, glass, corners and motion in one appearance bundle."
   },
   "icon": "./icon.svg",
   "license": "MIT",

@@ -714,6 +714,8 @@ body[data-ds-dark-theme] [data-conversation-tabs] {
     corner-shape: round;
     background: #fff;
     box-shadow: 0 1px 2px rgb(0 0 0 / .12), 0 2px 8px -2px rgb(0 0 0 / .14), 0 0 0 .5px rgb(0 0 0 / .06);
+    /* mountDroplet stretches it from its start edge. */
+    transform-origin: 0 50%;
   }
   body[data-ds-dark-theme] [data-conversation-tabs]::before {
     background: rgb(255 255 255 / .22);
@@ -915,6 +917,9 @@ body {
   --lg-composer-filter: blur(clamp(14px, var(--lg-blur, 18px), 22px)) var(--lg-composer-tone);
   --lg-sheen-gain: calc(.9 * var(--lg-k, 1));
   --lg-sheen-back: .3;
+  /* Light gathering where a finger presses the glass. White does not show on white glass, so on
+     light it takes the accent's tint, the same light that marks focus on the rim. */
+  --lg-bloom: color-mix(in srgb, var(--dsw-alias-state-business-primary) 16%, rgb(255 255 255 / .9));
   --lg-control-fill: rgb(255 255 255 / calc(var(--lg-alpha, .56) * .35 + .08));
   --lg-menu-fill: rgb(250 250 252 / max(.5, calc(var(--lg-alpha, .56) * .5 + .2)));
   --lg-rim-dim: rgb(255 255 255 / calc(.34 * var(--lg-k, 1)));
@@ -966,6 +971,7 @@ body[data-ds-dark-theme] {
   --lg-composer-filter: blur(clamp(20px, var(--lg-blur, 18px), 28px)) var(--lg-composer-tone);
   --lg-sheen-gain: calc(.5 * var(--lg-k, 1));
   --lg-sheen-back: .25;
+  --lg-bloom: rgb(255 255 255 / .34);
   --lg-control-fill: rgb(58 58 60 / calc(var(--lg-alpha, .56) * .35 + .14));
   --lg-menu-fill: rgb(36 36 38 / max(.55, calc(var(--lg-alpha, .56) * .5 + .24)));
   --dsw-alias-bg-module-platform: rgb(120 120 128 / .16) !important;
@@ -1023,15 +1029,52 @@ html body [data-composer-card] {
    flat diagonal sheen give way to light that depends on which way each part of the rim faces. */
 /* No even glow inside the rim: a ring of light all the way round reads as the edge of a second,
    smaller pane. The sheen lights the rim where it faces the light. */
+/* One piece of glass. The filter reads everything painted before it, and a surface paints its own
+   border and shadow before its children: blurred and bent, they came back inside the rim as a
+   grey band, a second pane under the first (2026-11-08, along the composer's foot: 231-236
+   against 255, and 255 to the edge once they were gone). So a lens surface keeps only the room
+   its border takes, and its glass layer's tint, painted after the filter, draws the edge
+   (--lg-surface-edge, --lg-surface-edge-width) and the shadow (--lg-surface-shadow). A rim shade
+   of even width did the same on its own, so there is none: the sheen shades the rim by the way
+   each part of it faces. The shell's tokens (--lg-float-shadow, --lg-composer-shadow) were
+   resolved on body with the old rim in them, which is why each surface names its shadow here. */
 html[data-lg-refraction="lens"] body [data-lg-lens] {
-  --lg-rim-shadow: inset -5px -5px 6px -5px var(--lg-rim-shade);
+  --lg-rim-shadow: 0 0 #0000;
   --lg-surface-fill: var(--lg-control-fill);
+}
+@media not (forced-colors: active) {
+  html[data-lg-refraction="lens"] body [data-lg-lens][data-lg-surface] {
+    border-color: transparent !important;
+    box-shadow: none !important;
+  }
 }
 html[data-lg-refraction="lens"] body [data-lg-lens][data-lg-surface='composer'] {
   --lg-composer-fill:
     radial-gradient(320px circle at var(--lg-x, 50%) var(--lg-y, 0px), var(--lg-glint), transparent 70%),
     var(--lg-composer);
   --lg-surface-fill: var(--lg-composer-fill);
+  --lg-surface-edge: var(--lg-edge, var(--dsw-alias-border-l2));
+  --lg-surface-edge-width: 1px;
+  --lg-surface-shadow: var(--lg-composer-shadow, var(--dsw-shadow-lv2));
+}
+/* With the lens the pointer's glint is its own composited element in the sheen (below), moved by
+   a transform. Painted into this fill, every pointer move repainted the tint with its shadow:
+   143 fps on the 240 Hz display, against 228 for the moved glint (2026-11-08). */
+html[data-lg-refraction="lens"] body [data-lg-surface='composer'] > [data-lg-glass] {
+  --lg-surface-fill: var(--lg-composer);
+}
+html body [data-lg-sheen] > s { display: none; }
+html[data-lg-refraction="lens"] body [data-lg-surface='composer'] > [data-lg-sheen] > s {
+  display: block;
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 640px;
+  height: 640px;
+  translate: -50% -50%;
+  background: radial-gradient(closest-side, var(--lg-glint), transparent 70%);
+  will-change: transform;
+  pointer-events: none;
 }
 /* The composer's glass reaches 9px past the card into a 10px gap, and a press widens the card
    a little: past the seat's edge that would count as overflow, the conversation would grow a
@@ -1051,6 +1094,7 @@ html[data-lg-refraction="lens"] body [data-lg-lens][data-lg-surface='tabs'] {
   background: transparent !important;
   /* A grey track, so the white thumb on it reads at a glance. */
   --lg-surface-fill: linear-gradient(color-mix(in srgb, var(--dsw-alias-label-primary) 7%, transparent), color-mix(in srgb, var(--dsw-alias-label-primary) 7%, transparent)), var(--lg-control-fill);
+  --lg-surface-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dsw-alias-label-primary) 6%, transparent);
 }
 /* The toolbar's buttons share one capsule, as on the system's own toolbars. */
 html[data-lg-refraction="lens"] body [data-lg-lens][data-lg-surface='toolbar'] {
@@ -1058,11 +1102,16 @@ html[data-lg-refraction="lens"] body [data-lg-lens][data-lg-surface='toolbar'] {
   border-radius: 999px;
   corner-shape: round;
   padding-inline: 3px;
-  box-shadow: 0 0 0 .5px var(--lg-edge), 0 1px 3px rgb(0 0 0 / calc(.05 * var(--lg-k, 1)));
+  --lg-surface-edge: var(--lg-edge);
+  --lg-surface-edge-width: .5px;
+  --lg-surface-shadow: 0 1px 3px rgb(0 0 0 / calc(.05 * var(--lg-k, 1)));
 }
 /* Menus: the shell's own material layer gives way to the glass, thicker so items stay legible. */
 html[data-lg-refraction="lens"] body [data-lg-lens][data-lg-surface='menu'] {
   --lg-surface-fill: var(--lg-menu-fill);
+  --lg-surface-edge: var(--lg-edge);
+  --lg-surface-edge-width: 1px;
+  --lg-surface-shadow: var(--dsw-elevation-prominent, 0 12px 32px -14px rgb(0 0 0 / .2));
 }
 html[data-lg-refraction="lens"] body [data-lg-lens][data-lg-surface='menu'] > [class*='_material_1w4el'] {
   visibility: hidden;
@@ -1084,14 +1133,23 @@ html[data-lg-refraction="lens"] body [data-lg-glass] > b {
   -webkit-backdrop-filter: var(--lg-lens) var(--lg-composer-tone);
   backdrop-filter: var(--lg-lens) var(--lg-composer-tone);
 }
-/* The tint and the rim's shade lie on the glass, not under it. */
+/* The tint, the edge and the shadow lie on the glass, not under it, so the filter never sees them. */
+/* It reaches out over the surface's border, now transparent, and draws the edge as a real border,
+   so the shadow starts outside the edge as it did on the surface; a ring in the shadow list sat on
+   the shadow and darkened the foot's hairline from 213 to 147. Its corners follow the surface's
+   own shape: a page-wide squircle rule gave the tint other corners than the glass under it. */
 html[data-lg-refraction="lens"] body [data-lg-glass]::after {
   content: '';
   position: absolute;
-  inset: 0;
-  border-radius: inherit;
+  inset: calc(-1 * var(--lg-surface-edge-width, 0px));
+  border: var(--lg-surface-edge-width, 0px) solid var(--lg-surface-edge, transparent);
+  border-radius: calc(var(--lg-surface-radius, 0px) + var(--lg-surface-edge-width, 0px));
+  corner-shape: var(--lg-surface-corner, round);
   background: var(--lg-surface-fill, var(--lg-composer));
-  box-shadow: var(--lg-rim-shadow, none);
+  background-clip: padding-box;
+  box-shadow: var(--lg-surface-shadow, 0 0 #0000);
+  /* No transition: repainting this layer with its shadow costs about 7 ms, so a 200 ms fade of
+     the edge on focus ran at 139 fps. The edge changes in one frame. */
 }
 @media (forced-colors: active) {
   html body :is([data-lg-glass], [data-lg-sheen]) { display: none !important; }
@@ -1101,6 +1159,16 @@ html[data-lg-refraction="lens"] body [data-lg-glass]::after {
 html[data-lg-refraction="lens"] body [data-lg-lens] > [data-lg-sheen] {
   overflow: hidden;
   opacity: min(var(--lg-sheen-gain, .9), 1);
+}
+/* The light a press gathers: mountLens places it under the finger and plays it on the compositor.
+   Inside the sheen layer, so the glass's own outline clips it. */
+html[data-lg-refraction="lens"] body [data-lg-sheen] > u {
+  position: absolute;
+  translate: -50% -50%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--lg-bloom), transparent);
+  opacity: 0;
+  pointer-events: none;
 }
 html[data-lg-refraction="lens"] body [data-lg-sheen] > i {
   position: absolute;
@@ -1143,8 +1211,7 @@ html[data-lg-refraction="lens"] body [data-lg-surface='composer']:focus-within >
   opacity: 1;
 }
 html[data-lg-refraction="lens"] body [data-composer-card][data-lg-lens]:focus-within {
-  border-color: color-mix(in srgb, var(--dsw-alias-state-business-primary) 20%, var(--lg-edge, var(--dsw-alias-border-l2)));
-  box-shadow: var(--lg-rim-shadow, 0 0 #0000), var(--lg-composer-shadow, var(--dsw-shadow-lv2)) !important;
+  --lg-surface-edge: color-mix(in srgb, var(--dsw-alias-state-business-primary) 20%, var(--lg-edge, var(--dsw-alias-border-l2)));
 }
 /* With text passing behind it the composer thickens and lifts; over empty sheet it stays clear.
    A layer of its own, so only its opacity changes, and inside the filter's element, so that
@@ -1350,7 +1417,7 @@ html body [data-chat-turn] :is(h1, h2, h3, h4) {
 
     /* ── motion ────────────────────────────────────────────────────────────────
        A damped spring (response .3s, damping ratio .8) sampled for linear(): it settles
-       in .36s with a barely visible overshoot, so controls feel quick rather than bouncy.
+       with a barely visible overshoot, so controls feel quick rather than bouncy.
        --lg-motion scales every distance: 0 off, 1 standard, 1.6 lively. Presses scale less
        than that: a button that shrinks visibly reads as broken, however lively the setting.
        Three speeds: instant for hover and press, control for a control changing state, and
@@ -1360,9 +1427,6 @@ body {
   --glass-press: min(var(--lg-motion, 1), 1.25);
   --glass-spring: linear(0, 0.07, 0.223, 0.399, 0.565, 0.705, 0.813, 0.893, 0.947, 0.981, 1.001, 1.011, 1.015, 1.015, 1.013, 1.01, 1.008, 1.005, 1);
 }
-
-/* A surface DSH has removed, playing out. Back in the page its stylesheet animations would start over. */
-[data-lg-leaving], [data-lg-leaving] * { animation: none !important; transition: none !important; }
 
 /* The boot veil waits for the start page, then lets mountEntry's whale take over from its own.
    Warm: a hair see-through, so what lies under it is really drawn before anything moves. Fully
@@ -1400,9 +1464,7 @@ html[data-lg-entry='run'] #dsh-boot .dsh-boot-stack { transform: none; }
   [data-conversation-tabs] > [role='tab'] {
     transition: background-color var(--glass-control) ease, color var(--glass-control) ease, box-shadow var(--glass-control) ease;
   }
-  [data-conversation-tabs]::before {
-    transition: left var(--glass-spring-duration, .36s) var(--glass-spring), width var(--glass-spring-duration, .36s) var(--glass-spring);
-  }
+  /* The thumb itself has no transition: mountDroplet moves it as a drop, on the compositor. */
 
   /* Small controls shrink under the pointer and spring back, harder the smaller they
      are; independent scale leaves native transforms alone. */
@@ -1412,20 +1474,20 @@ html[data-lg-entry='run'] #dsh-boot .dsh-boot-stack { transform: none; }
     transition:
       background-color var(--glass-instant) ease, color var(--glass-instant) ease, border-color var(--glass-instant) ease,
       box-shadow var(--glass-instant) ease, opacity var(--glass-instant) ease, transform var(--glass-instant) ease,
-      scale var(--glass-spring-duration, .36s) var(--glass-spring);
+      scale .16s var(--glass-spring);
   }
   [data-composer-card] button:active:not(:disabled) {
-    scale: calc(1 - .03 * var(--glass-press));
+    scale: calc(1 - .015 * var(--glass-press));
     transition-duration: var(--glass-instant);
   }
   :is([data-composer-card], [data-slot='root'] header) button[class*='_primary']:active:not(:disabled) {
-    scale: calc(1 - .04 * var(--glass-press));
+    scale: calc(1 - .02 * var(--glass-press));
     transition-duration: var(--glass-instant);
   }
   /* Only small controls in the right panel shrink: icon buttons and chips. */
   [data-slot='root'] header button:not([role='tab'], [class*='_primary']):active:not(:disabled),
   [data-rightbar-col] button:is(:has(> svg:only-child), [aria-label]:not(:has(> span))):not(.wb-row, [role='tab'], [role='menuitem'], [role='treeitem']):active:not(:disabled) {
-    scale: calc(1 - .06 * var(--glass-press));
+    scale: calc(1 - .03 * var(--glass-press));
     transition-duration: var(--glass-instant);
   }
 
@@ -1433,32 +1495,20 @@ html[data-lg-entry='run'] #dsh-boot .dsh-boot-stack { transform: none; }
      properties, so anchored positions stay untouched. Menus must not fade here: opacity
      below 1 on the surface cuts its material off from the page until the fade ends, so
      the menu would open clear and turn white. */
-  @keyframes glass-pop { from { scale: calc(1 - .05 * var(--lg-motion, 1)); } }
-  @keyframes glass-sheet { from { opacity: 0; scale: calc(1 - .03 * var(--lg-motion, 1)); translate: 0 calc(8px * var(--lg-motion, 1)); } }
+  @keyframes glass-pop { from { scale: calc(1 - .015 * var(--lg-motion, 1)); } }
+  @keyframes glass-sheet { from { scale: calc(1 - .015 * var(--lg-motion, 1)); translate: 0 calc(4px * var(--lg-motion, 1)); } }
   @keyframes glass-fade { from { opacity: 0; } }
-  [data-menu-material] {
-    animation: glass-pop var(--glass-spring-duration, .36s) var(--glass-spring);
+  [data-menu-material]:not([data-lg-origin]) {
+    animation: glass-pop var(--glass-spring-duration, .2s) var(--glass-spring);
   }
-  [role='dialog']:not([data-menu-material]) {
+  [role='dialog']:not([data-menu-material], [data-lg-origin]) {
     animation: glass-sheet var(--glass-spring-duration, .36s) var(--glass-spring);
   }
   [class*='_overlay'] > [class*='_mask'] {
     animation: glass-fade var(--glass-control) ease;
   }
 }
-/* Reduced motion drops the travel and keeps the fades: they say what changed without moving anything.
-   Layer by layer on a menu, because fading the surface would cut its glass off from the page. */
-@media (prefers-reduced-motion: reduce) {
-  @keyframes glass-calm-in { from { opacity: 0; } }
-  [data-menu-material] > :not([data-lg-glass], [data-lg-sheen]),
-  [data-menu-material] > [data-lg-glass] > b,
-  [data-menu-material] > [data-lg-glass]::after,
-  [data-menu-material] > [data-lg-sheen],
-  [role='dialog']:not([data-menu-material]),
-  [class*='_overlay'] > [class*='_mask'] {
-    animation: glass-calm-in var(--glass-control) ease;
-  }
-}
+/* Reduced motion keeps DSH's native visibility lifecycle, without another layer of fades. */
 html[data-lg-motion="off"] body :is([data-menu-material], [role='dialog'], [class*='_overlay'] > [class*='_mask']),
 html[data-lg-motion="off"] body [data-menu-material] > *,
 html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass] > b,
@@ -1480,7 +1530,7 @@ html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass]::after {
     const STEPS = { strength: 5, transparency: 5 };
     const snap = (key, value) => { const step = STEPS[key] ?? 1; return Math.round(value / step) * step; };
     const CHOICES = { motion: ['off', 'subtle', 'standard', 'lively'], backdrop: ['wash', 'vivid', 'plain'], refraction: ['off', 'lens'] };
-    const MOTION = { off: [0, '.2s'], subtle: [0.5, '.28s'], standard: [1, '.36s'], lively: [1.6, '.5s'] };
+    const MOTION = { off: [0, '.16s'], subtle: [0.5, '.16s'], standard: [1, '.2s'], lively: [1.6, '.24s'] };
 
     function normalize(raw) {
       const next = { ...DEFAULTS };
@@ -1712,7 +1762,7 @@ html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass]::after {
      * pixel is, which sets how much its blur eases off. Alpha is how much of the pixel the card
      * covers, which the filter's output is trimmed to.
      */
-    function lensMap({ w, h, depth, nx, ny }, bezel, outward, ramp = bezel) {
+    function lensMap({ w, h, depth, nx, ny }, bezel, outward, ramp = bezel, scale = 1) {
       const sign = outward ? 1 : -1;
       const canvas = document.createElement('canvas');
       canvas.width = w;
@@ -1730,7 +1780,10 @@ html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass]::after {
         // How near the edge, falling in a straight line from 1 at the edge to 0 at `ramp` in:
         // the filter turns this into how far its blur eases off.
         data[o + 2] = Math.round(Math.min(Math.max(1 - depth[i] / ramp, 0), 1) * 255);
-        data[o + 3] = Math.round(Math.min(Math.max(depth[i] + 0.5, 0), 1) * 255);
+        // Coverage falls over one map pixel. When the map is drawn smaller than the card, the
+        // filter steepens this back to one CSS pixel (see LENS_MAP_PIXELS), so the outline stays
+        // where it was and as crisp.
+        data[o + 3] = Math.round(Math.min(Math.max(depth[i] * scale + 0.5, 0), 1) * 255);
       }
       g.putImageData(image, 0, 0);
       return canvas.toDataURL('image/png');
@@ -1788,6 +1841,17 @@ html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass]::after {
     const SURFACE_SELECTOR = SURFACES.map((surface) => surface.selector).join(', ');
 
     /**
+     * Most map pixels a lens filter may carry. The browser copies the map into every frame once
+     * for each primitive that reads it, nine times in the five-level ramp, and the copies, not
+     * the blurs, were what held the whole page to 80 fps on a 240 Hz display behind a 855 x 116
+     * map (2026-11-08: 97 KB of map 237 fps, 152 KB 161, 387 KB 70-81). The maps are smooth
+     * fields, so a card larger than this gets a smaller map the filter stretches back over it;
+     * side by side only the outline's antialiasing differed, which the filter steepens back.
+     */
+    const LENS_MAP_PIXELS = 10000;
+    const lensMapScale = (width, height) => Math.min(1, Math.max(0.25, Math.sqrt(LENS_MAP_PIXELS / Math.max(1, width * height))));
+
+    /**
      * Liquid glass on each surface in SURFACES. Per surface: a backdrop filter that frosts the
      * middle and bends a sharper picture at the rim, and a sheen lit from one direction. The
      * light leans towards the pointer over a surface; a press squashes or swells it and springs
@@ -1819,15 +1883,39 @@ html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass]::after {
       const mapsFor = (width, height, radius, exponent, bezel, dpr, reach, ramp) => {
         const key = [width, height, radius, exponent, bezel, dpr, reach, ramp].join('/');
         let entry = maps.get(key);
+        // A menu settles a pixel or two after it opens, so an exact key missed every time and the
+        // maps were drawn again on the main thread (about 22 ms) as it appeared. Within 2px the
+        // filter stretches a cached map to fit, as it does while a card is being resized.
         if (!entry) {
+          for (const [cachedKey, cached] of maps) {
+            const [w, h, r, e, b, d, rc, rp] = cachedKey.split('/').map(Number);
+            if (r === radius && e === exponent && b === bezel && d === dpr && rc === reach
+              && Math.abs(w - width) <= 2 && Math.abs(h - height) <= 2 && Math.abs(rp - ramp) <= 1) { entry = cached; break; }
+          }
+        }
+        if (!entry) {
+          const scale = lensMapScale(width + 2 * reach, height + 2 * reach);
           entry = {
-            lens: lensMap(glassField(width, height, radius, exponent, 1, reach), bezel, reach > 0, ramp),
-            sheen: sheenMap(glassField(width, height, radius, exponent, dpr), bezel),
+            lens: lensMap(glassField(width, height, radius, exponent, scale, reach), bezel, reach > 0, ramp, scale),
+            scale,
+            sheen: blobUrl(sheenMap(glassField(width, height, radius, exponent, dpr), bezel)),
           };
           maps.set(key, entry);
-          if (maps.size > 12) maps.delete(maps.keys().next().value);
+          if (maps.size > 12) {
+            const [oldKey, old] = maps.entries().next().value;
+            maps.delete(oldKey);
+            if (![...lenses.values()].some((lens) => lens.sheenUrl === old.sheen)) URL.revokeObjectURL(old.sheen);
+          }
         }
         return entry;
+      };
+      // The sheen map reaches CSS through --lg-sheen-map. As a data: URL it was 35 KB of text that
+      // every restyle of the sheen rows substituted and parsed again: 4.2 ms each time the light
+      // moved, under a pointer over the composer (2026-11-08). As a blob: URL it is a few dozen
+      // characters, and the same restyle takes 0.6 ms.
+      const blobUrl = (dataUrl) => {
+        const bytes = Uint8Array.from(atob(dataUrl.slice(dataUrl.indexOf(',') + 1)), (ch) => ch.charCodeAt(0));
+        return URL.createObjectURL(new Blob([bytes], { type: 'image/png' }));
       };
 
       // Glass first, sheen over it; both after the surface's own content in the tree, under it
@@ -1844,6 +1932,8 @@ html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass]::after {
         const glass = surface.querySelector(':scope > [data-lg-glass]');
         const sheen = surface.querySelector(':scope > [data-lg-sheen]');
         if (glass.compareDocumentPosition(sheen) & Node.DOCUMENT_POSITION_PRECEDING) surface.append(sheen);
+        // The composer's pointer glint, after the four light rows so their nth-child rules hold.
+        if (surface.matches('[data-composer-card]') && !sheen.querySelector(':scope > s')) sheen.append(document.createElement('s'));
       };
 
       const build = (surface, entry) => {
@@ -1869,7 +1959,7 @@ html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass]::after {
         // The blur eases off over the whole way from the middle to the edge, so no flat middle
         // is left with an outline of its own.
         const ramp = Math.max(bezel, Math.floor(Math.min(width, height) / 2));
-        const { lens, sheen } = mapsFor(width, height, radius, exponent, bezel, dpr, reach, ramp);
+        const { lens, sheen, scale: mapScale } = mapsFor(width, height, radius, exponent, bezel, dpr, reach, ramp);
         entry.bezel = bezel;
         entry.reach = reach;
         const W = width + 2 * reach;
@@ -1920,17 +2010,28 @@ html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass]::after {
           );
         }
         grading.push(...frostedFrom('gradedRaw', 'graded'));
+        // A smaller map's coverage falls over 1/mapScale CSS pixels once stretched; steepen it
+        // around its midpoint, which sits on the edge, back to one.
+        const trim = [];
+        if (mapScale < 1) {
+          const sharpen = primitive('feComponentTransfer', { in: 'lens', result: 'outline' });
+          const slope = 1 / mapScale;
+          sharpen.append(primitive('feFuncA', { type: 'linear', slope: slope.toFixed(3), intercept: (0.5 - 0.5 * slope).toFixed(3) }));
+          trim.push(sharpen);
+        }
         filter.append(
           map,
           ...levels,
           primitive('feColorMatrix', { in: 'lens', type: 'matrix', values: '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0', result: 'nearness' }),
           ...grading,
           bend,
-          primitive('feComposite', { in: 'edge', in2: 'lens', operator: 'in' }),
+          ...trim,
+          primitive('feComposite', { in: 'edge', in2: mapScale < 1 ? 'outline' : 'lens', operator: 'in' }),
         );
         surface.style.setProperty('--lg-lens', `url(#${filter.id})`);
         surface.style.setProperty('--lg-lens-reach', `${reach}px`);
         surface.style.setProperty('--lg-sheen-map', `url("${sheen}")`);
+        entry.sheenUrl = sheen;
         surface.style.setProperty('--lg-surface-radius', `${radius}px`);
         surface.style.setProperty('--lg-surface-corner', corner);
         surface.setAttribute('data-lg-lens', '');
@@ -1944,6 +2045,7 @@ html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass]::after {
         for (const item of entries) {
           const entry = lenses.get(item.target);
           if (!entry) continue;
+          grow(entry);
           const { clientWidth: width, clientHeight: height } = item.target;
           const reach = entry.reach ?? 0;
           for (const element of [entry.filter, entry.filter.querySelector('feImage')]) {
@@ -1951,7 +2053,10 @@ html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass]::after {
             element?.setAttribute('height', String(height + 2 * reach));
           }
           clearTimeout(entry.timer);
-          entry.timer = setTimeout(() => build(item.target, entry), 160);
+          // Drawing new maps holds the main thread for 30-40 ms. While the glass is following a
+          // new line it waits until the glass has arrived, so the motion has no stall in it.
+          const settle = Math.max(60, (entry.growUntil ?? 0) - performance.now() + 20);
+          entry.timer = setTimeout(() => build(item.target, entry), settle);
         }
       });
       const INLINE = ['--lg-lens', '--lg-lens-reach', '--lg-sheen-map', '--lg-surface-radius', '--lg-surface-corner', '--lg-light-x', '--lg-light-y', '--lg-sheen-boost', 'scale'];
@@ -1967,12 +2072,18 @@ html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass]::after {
         surface.setAttribute('data-lg-surface', kind.name);
         resize.observe(surface);
         build(surface, entry);
+        if (kind.name === 'menu') bud(entry);
       };
       const detach = (surface) => {
         const entry = lenses.get(surface);
         if (!entry) return;
         resize.unobserve(surface);
         clearTimeout(entry.timer);
+        entry.squash?.cancel();
+        entry.glow?.cancel();
+        cancelAll(entry.grow);
+        cancelAll(entry.bud);
+        surface.querySelector(':scope > [data-lg-sheen] > u')?.remove();
         entry.filter.remove();
         lenses.delete(surface);
         for (const layer of surface.querySelectorAll(':scope > :is([data-lg-glass], [data-lg-sheen])')) layer.remove();
@@ -1988,8 +2099,53 @@ html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass]::after {
         for (const surface of [...lenses.keys()]) if (!found.has(surface) || !surface.isConnected) detach(surface);
       };
       let pending = 0;
-      const observer = new MutationObserver(() => {
-        if (!pending) pending = requestAnimationFrame(() => { pending = 0; scan(); });
+      const added = new Set();
+      const repair = new Set();
+      let removed = false;
+      const LAYERS = '[data-lg-glass], [data-lg-sheen]';
+      const owned = (node) => node === svg || svg.contains(node) || !!node.closest(LAYERS);
+      const flush = () => {
+        pending = 0;
+        // Only a few surfaces are tracked, regardless of the transcript's length.
+        if (removed) for (const surface of [...lenses.keys()]) {
+          if (!surface.isConnected || !surface.matches(SURFACE_SELECTOR)) detach(surface);
+        }
+        removed = false;
+        for (const root of added) {
+          if (!root.isConnected || owned(root)) continue;
+          // A parent and its children can arrive in different records in one frame.
+          let parent = root.parentElement;
+          while (parent && !added.has(parent)) parent = parent.parentElement;
+          if (parent) continue;
+          if (root.matches(SURFACE_SELECTOR)) attach(root);
+          for (const surface of root.querySelectorAll(SURFACE_SELECTOR)) attach(surface);
+        }
+        added.clear();
+        for (const surface of repair) if (surface.isConnected && lenses.has(surface)) ensureLayers(surface);
+        repair.clear();
+      };
+      const observer = new MutationObserver((records) => {
+        for (const record of records) {
+          const target = record.target;
+          // Filter/map writes and our glass layers never introduce shell surfaces.
+          if (!(target instanceof Element) || owned(target)) continue;
+          for (const node of record.addedNodes) if (node instanceof Element && !owned(node)) added.add(node);
+          for (const node of record.removedNodes) {
+            if (!(node instanceof Element)) continue;
+            if (lenses.has(target) && node.matches(LAYERS)) repair.add(target);
+            else if (!node.matches(LAYERS) && node !== svg) removed = true;
+          }
+        }
+        // A menu gets its glass before its first frame, not one or more frames later: until then
+        // the shell's own flat material showed, and the change to glass read as a second pane.
+        // The shell adds each menu straight to body as the material itself, so no subtree is
+        // searched for it, and streaming text pays nothing for this.
+        if ([...added].some((node) => node.isConnected && node.matches('[data-menu-material]'))) {
+          cancelAnimationFrame(pending);
+          flush();
+          return;
+        }
+        if (!pending && (added.size || repair.size || removed)) pending = requestAnimationFrame(flush);
       });
       observer.observe(document.body, { childList: true, subtree: true });
       // The middle's frosting differs between light and dark.
@@ -2021,24 +2177,29 @@ html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass]::after {
       };
       const render = (entry) => {
         const { surface } = entry;
-        const lightKey = `${entry.light[0].toFixed(3)},${entry.light[1].toFixed(3)}`;
-        if (entry.written !== lightKey) {
-          entry.written = lightKey;
-          surface.style.setProperty('--lg-light-x', entry.light[0].toFixed(3));
-          surface.style.setProperty('--lg-light-y', entry.light[1].toFixed(3));
+        // The light and the press boost go on the sheen layer, the only thing that reads them.
+        // Written on the surface they were inherited by everything inside it, and the composer's
+        // whole subtree was restyled every frame: 8 ms of a 240 Hz display's 4.2 ms frame.
+        let sheen = entry.sheen;
+        if (!sheen?.isConnected || sheen.parentElement !== surface) {
+          sheen = entry.sheen = surface.querySelector(':scope > [data-lg-sheen]');
+          entry.written = '';
         }
+        const lightKey = `${entry.light[0].toFixed(3)},${entry.light[1].toFixed(3)}`;
+        if (sheen && entry.written !== lightKey) {
+          entry.written = lightKey;
+          sheen.style.setProperty('--lg-light-x', entry.light[0].toFixed(3));
+          sheen.style.setProperty('--lg-light-y', entry.light[1].toFixed(3));
+        }
+        // The squash itself is played on the compositor by squash(); the spring here only
+        // brightens the sheen and bends the rim harder in step with it.
         const p = spring.surface === surface ? spring.value : 0;
         if (Math.abs(p) > 0.001 && entry.kind.press) {
-          const m = Math.min(still() ? 0 : Math.max(0, options.motion()), 1.6);
-          surface.style.setProperty('--lg-sheen-boost', (1 + 0.35 * p).toFixed(3));
-          surface.style.setProperty('scale', entry.kind.press === 'swell'
-            ? `${(1 + 0.03 * Math.min(m, 1.2) * p).toFixed(4)}`
-            : `${(1 + 0.005 * m * p).toFixed(4)} ${(1 - 0.012 * m * p).toFixed(4)}`);
+          sheen?.style.setProperty('--lg-sheen-boost', (1 + 0.35 * p).toFixed(3));
           entry.pressing = true;
         } else if (entry.pressing) {
           entry.pressing = false;
-          surface.style.removeProperty('--lg-sheen-boost');
-          surface.style.removeProperty('scale');
+          sheen?.style.removeProperty('--lg-sheen-boost');
         }
         const bent = Math.min(1 + 0.25 * p, entry.limit / Math.max(entry.scale, 0.001));
         if (entry.bent !== bent) {
@@ -2048,19 +2209,22 @@ html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass]::after {
       };
       const tick = (now) => {
         frame = 0;
-        const dt = Math.min((now - (last || now)) / 1000, 1 / 30);
+        const dt = Math.min(Math.max((now - last) / 1000, 0), 1 / 30);
         last = now;
         const ease = 1 - Math.exp(-dt / 0.09);
-        // Stiffness 380, damping ratio .5: a short squash and one small overshoot.
-        const stiffness = 380;
-        const damping = 2 * Math.sqrt(stiffness) * 0.5;
-        spring.velocity += (-stiffness * (spring.value - spring.target) - damping * spring.velocity) * dt;
-        spring.value += spring.velocity * dt;
+        // Same damping as the CSS spring; the analytic step also behaves consistently at
+        // 60/120/165 Hz, without Euler integration changing the feel with the refresh rate.
+        stepSpring(spring, dt);
         const settled = Math.abs(spring.value - spring.target) < 0.002 && Math.abs(spring.velocity) < 0.01;
         if (settled) { spring.value = spring.target; spring.velocity = 0; }
         let resting = settled;
+        // Every layout read before any write: a read after a write makes the browser restyle
+        // there and then, once per surface, instead of once for the frame.
+        const aims = [];
+        for (const entry of lenses.values()) aims.push(aimFor(entry));
+        let index = 0;
         for (const entry of lenses.values()) {
-          const aim = aimFor(entry);
+          const aim = aims[index++];
           entry.light[0] += (aim[0] - entry.light[0]) * ease;
           entry.light[1] += (aim[1] - entry.light[1]) * ease;
           if (Math.hypot(aim[0] - entry.light[0], aim[1] - entry.light[1]) >= 0.002) resting = false;
@@ -2070,10 +2234,151 @@ html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass]::after {
         if (!resting) frame = requestAnimationFrame(tick);
         else last = 0;
       };
-      const wake = () => { if (!frame) frame = requestAnimationFrame(tick); };
+      const wake = () => {
+        if (frame) return;
+        last = performance.now();
+        frame = requestAnimationFrame(tick);
+      };
       const surfaceAt = (event) => {
         const found = event.target instanceof Element ? event.target.closest(SURFACE_SELECTOR) : null;
         return found && lenses.has(found) ? found : null;
+      };
+
+      /* Liquid behaviour, all on the compositor, so it keeps the display's rate while the shell
+         works. calm() is reduced motion or the motion setting at off. */
+      const calm = () => reducedMotion.matches || options.motion() <= 0;
+      const layersOf = (surface) => [...surface.querySelectorAll(':scope > :is([data-lg-glass], [data-lg-sheen])')];
+      const cancelAll = (list) => { for (const animation of list ?? []) animation.cancel(); };
+
+      // Surface tension: in quickly and without a rebound, like a finger meeting a liquid's skin;
+      // out on a looser spring that runs past rest once and gathers itself.
+      const PRESS_IN = springCurve(0.16, 0.9);
+      const PRESS_OUT = springCurve(0.42, 0.5);
+      const squash = (entry, on) => {
+        const { surface } = entry;
+        if (typeof surface.animate !== 'function') return;
+        const now = getComputedStyle(surface).scale;
+        entry.squash?.cancel();
+        entry.squash = null;
+        const m = Math.min(Math.max(0, options.motion()), 1.6);
+        const to = !on ? '1' : entry.kind.press === 'swell'
+          ? `${(1 + 0.03 * Math.min(m, 1.2)).toFixed(4)}`
+          : `${(1 + 0.005 * m).toFixed(4)} ${(1 - 0.012 * m).toFixed(4)}`;
+        const from = now === 'none' ? '1' : now;
+        if (from === to) return;
+        const curve = on ? PRESS_IN : PRESS_OUT;
+        entry.squash = surface.animate([{ scale: from }, { scale: to }], { duration: curve.duration * 1000, easing: curve.easing, fill: on ? 'forwards' : 'none' });
+        entry.squash.finished.catch(() => {});
+      };
+
+      // Light gathering under the finger, inside the glass, then spreading out and fading on
+      // release, as a press on a water-filled skin would. Reduced motion keeps the light, not the
+      // spread.
+      const BLOOM_IN = springCurve(0.3, 0.9);
+      const bloom = (entry, at) => {
+        const sheen = entry.surface.querySelector(':scope > [data-lg-sheen]');
+        if (!sheen || typeof sheen.animate !== 'function') return;
+        let glow = sheen.querySelector(':scope > u');
+        if (!glow) { glow = document.createElement('u'); sheen.append(glow); }
+        const spread = !reducedMotion.matches;
+        if (at) {
+          entry.glow?.cancel();
+          const box = entry.surface.getBoundingClientRect();
+          const size = Math.min(320, Math.max(80, box.height * 2.4));
+          glow.style.left = `${at.x - box.left}px`;
+          glow.style.top = `${at.y - box.top}px`;
+          glow.style.width = `${size}px`;
+          glow.style.height = `${size}px`;
+          entry.glow = glow.animate(spread ? [{ opacity: 0, transform: 'scale(.35)' }, { opacity: 1, transform: 'scale(1)' }] : [{ opacity: 0 }, { opacity: 1 }],
+            { duration: BLOOM_IN.duration * 1000, easing: BLOOM_IN.easing, fill: 'forwards' });
+        } else {
+          if (!entry.glow) return;
+          const look = getComputedStyle(glow);
+          const from = { opacity: look.opacity, transform: look.transform === 'none' ? 'scale(1)' : look.transform };
+          entry.glow.cancel();
+          entry.glow = glow.animate([from, spread ? { opacity: 0, transform: 'scale(1.3)' } : { opacity: 0, transform: from.transform }],
+            { duration: 420, easing: 'cubic-bezier(.2, .7, .3, 1)' });
+          const fading = entry.glow;
+          fading.finished.then(() => { if (entry.glow === fading) entry.glow = null; }, () => {});
+        }
+      };
+
+      // A drop filling up: when the composer gains or loses a line its glass follows on the
+      // liquid spring from the edge that stayed put, instead of jumping to the new height.
+      const GROW = springCurve(0.34, 0.72);
+      const grow = (entry) => {
+        const { surface } = entry;
+        const box = { width: surface.offsetWidth, height: surface.offsetHeight, top: surface.offsetTop };
+        const was = entry.box;
+        entry.box = box;
+        if (!was || entry.kind.name !== 'composer' || calm() || !box.height || Math.abs(was.width - box.width) > 0.5) return;
+        if (Math.abs(box.height - was.height) < 2) return;
+        const layers = layersOf(surface);
+        if (!layers.length || typeof layers[0].animate !== 'function') return;
+        // From where the glass is drawn now, should it still be catching up with the last line.
+        let drawn = was.height;
+        if (entry.grow?.[0]?.playState === 'running') drawn = was.height * new DOMMatrixReadOnly(getComputedStyle(layers[0]).transform).d;
+        cancelAll(entry.grow);
+        // Growing keeps something where it was: the foot in a conversation, the middle on the
+        // centred start page, or the head. When none of them stays, the card is travelling (the
+        // first message carries it from the start page to its seat), and that has its own motion.
+        const footMoved = Math.abs(box.top + box.height - was.top - was.height);
+        const headMoved = Math.abs(box.top - was.top);
+        const middleMoved = Math.abs(box.top + box.height / 2 - was.top - was.height / 2);
+        const steady = Math.min(footMoved, headMoved, middleMoved);
+        if (steady > 1) return;
+        const origin = steady === footMoved ? '50% 100%' : steady === headMoved ? '50% 0%' : '50% 50%';
+        // The origin as a style, not a keyframe, so the compositor can run it.
+        for (const layer of layers) layer.style.transformOrigin = origin;
+        const frames = [{ transform: `scaleY(${(drawn / box.height).toFixed(4)})` }, { transform: 'none' }];
+        entry.grow = layers.map((layer) => layer.animate(frames, { duration: GROW.duration * 1000, easing: GROW.easing }));
+        entry.growUntil = performance.now() + GROW.duration * 1000;
+      };
+
+      // A menu pours out of the control that opened it: its glass, and the shadow the glass now
+      // carries, start as that control's shape and fill out to the menu, the axis it pours along
+      // leading. Only the glass moves; the items stay put and sharp, as they always have.
+      let trigger = null;
+      const noteTrigger = (event) => {
+        const control = event.button === 0 && event.target instanceof Element ? event.target.closest('button, [role="button"], [role="combobox"]') : null;
+        trigger = control ? { at: performance.now(), box: control.getBoundingClientRect() } : null;
+      };
+      const BUD_LEAD = springCurve(0.24, 0.74);
+      const BUD_TRAIL = springCurve(0.36, 0.8);
+      const bud = (entry) => {
+        if (calm() || !trigger || performance.now() - trigger.at > 600) return;
+        const menu = entry.surface.getBoundingClientRect();
+        const t = trigger.box;
+        const gap = Math.hypot(Math.max(menu.left - t.right, t.left - menu.right, 0), Math.max(menu.top - t.bottom, t.top - menu.bottom, 0));
+        const layers = layersOf(entry.surface);
+        if (gap > 24 || !menu.width || !menu.height || !layers.length || typeof layers[0].animate !== 'function') return;
+        trigger = null;
+        // The first frame is the control's own box: from the menu's corner, shifted onto the
+        // control and scaled to its size; each axis then opens on its spring.
+        const sx = Math.min(1, Math.max(0.06, t.width / menu.width));
+        const sy = Math.min(1, Math.max(0.06, t.height / menu.height));
+        const dx = t.left - menu.left;
+        const dy = t.top - menu.top;
+        const vertical = menu.top >= t.bottom - 1 || menu.bottom <= t.top + 1;
+        const duration = Math.max(BUD_LEAD.duration, BUD_TRAIL.duration);
+        const steps = 40;
+        const frames = [];
+        for (let i = 0; i <= steps; i++) {
+          const time = (duration * i) / steps;
+          const lead = BUD_LEAD.at(time);
+          const follow = BUD_TRAIL.at(time);
+          const px = vertical ? follow : lead;
+          const py = vertical ? lead : follow;
+          frames.push({
+            offset: i / steps,
+            transform: i === steps ? 'none'
+              : `translate(${(dx * (1 - px)).toFixed(2)}px, ${(dy * (1 - py)).toFixed(2)}px) scale(${(sx + (1 - sx) * px).toFixed(4)}, ${(sy + (1 - sy) * py).toFixed(4)})`,
+          });
+        }
+        cancelAll(entry.bud);
+        // The origin as a style, not a keyframe, so the compositor can run it.
+        for (const layer of layers) layer.style.transformOrigin = '0 0';
+        entry.bud = layers.map((layer) => layer.animate(frames, { duration: duration * 1000, easing: 'linear' }));
       };
       const onMove = (event) => {
         if (event.pointerType !== 'mouse') return;
@@ -2094,17 +2399,25 @@ html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass]::after {
         pressed = surface;
         spring.surface = surface;
         pointer = { surface, x: event.clientX, y: event.clientY };
-        if (!still() && options.motion() > 0) spring.target = 1;
+        if (!still() && options.motion() > 0) {
+          spring.target = 1;
+          const entry = lenses.get(surface);
+          squash(entry, true);
+          bloom(entry, { x: event.clientX, y: event.clientY });
+        }
         wake();
       };
       const onUp = () => {
         if (!pressed) return;
+        const entry = lenses.get(pressed);
         pressed = null;
         spring.target = 0;
+        if (entry) { squash(entry, false); bloom(entry, null); }
         wake();
       };
       const onLeave = (event) => { if (!event.relatedTarget && !pressed) { pointer = null; wake(); } };
       document.addEventListener('pointermove', onMove, { passive: true });
+      document.addEventListener('pointerdown', noteTrigger, { capture: true, passive: true });
       document.addEventListener('pointerdown', onDown, { passive: true });
       document.addEventListener('pointerup', onUp, { passive: true });
       document.addEventListener('pointercancel', onUp, { passive: true });
@@ -2119,9 +2432,12 @@ html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass]::after {
           observer.disconnect();
           theme.disconnect();
           cancelAnimationFrame(pending);
+          added.clear();
+          repair.clear();
           cancelAnimationFrame(frame);
           resize.disconnect();
           document.removeEventListener('pointermove', onMove);
+          document.removeEventListener('pointerdown', noteTrigger, { capture: true });
           document.removeEventListener('pointerdown', onDown);
           document.removeEventListener('pointerup', onUp);
           document.removeEventListener('pointercancel', onUp);
@@ -2129,6 +2445,8 @@ html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass]::after {
           window.removeEventListener('blur', onUp);
           for (const surface of [...lenses.keys()]) detach(surface);
           svg.remove();
+          for (const cached of maps.values()) URL.revokeObjectURL(cached.sheen);
+          maps.clear();
         },
       };
     }
@@ -2140,23 +2458,39 @@ html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass]::after {
       const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
       let frame = 0;
       let current = null;
+      let painted = null;
       let x = 0;
       let y = 0;
+      const clean = (element) => {
+        element?.style.removeProperty('--lg-x');
+        element?.style.removeProperty('--lg-y');
+        element?.style.removeProperty('transform');
+      };
       const reset = () => {
         if (frame) cancelAnimationFrame(frame);
         frame = 0;
-        if (!current) return;
-        current.style.removeProperty('--lg-x');
-        current.style.removeProperty('--lg-y');
+        clean(painted);
+        painted = null;
         current = null;
       };
       const paintHighlight = () => {
         frame = 0;
         if (!current?.isConnected) return reset();
-        // One layout read per frame, followed by the two style writes.
+        // With the lens on, the glint is its own composited element in the sheen, moved by a
+        // transform: nothing is restyled or repainted but it. Without the lens the card's own
+        // ::before paints it from --lg-x and --lg-y on the card.
+        const glint = current.querySelector(':scope[data-lg-lens] > [data-lg-sheen] > s');
+        const target = glint ?? current;
+        if (painted && painted !== target) clean(painted);
+        painted = target;
+        // One layout read per frame, followed by the style writes.
         const rect = current.getBoundingClientRect();
-        current.style.setProperty('--lg-x', `${Math.round(x - rect.left)}px`);
-        current.style.setProperty('--lg-y', `${Math.round(y - rect.top)}px`);
+        if (glint) {
+          glint.style.transform = `translate(${(x - rect.left - rect.width / 2).toFixed(1)}px, ${(y - rect.top).toFixed(1)}px)`;
+          return;
+        }
+        target.style.setProperty('--lg-x', `${Math.round(x - rect.left)}px`);
+        target.style.setProperty('--lg-y', `${Math.round(y - rect.top)}px`);
       };
       const onMove = (event) => {
         if (reducedMotion.matches || reducedTransparency.matches || !finePointer.matches || event.pointerType !== 'mouse') return;
@@ -2187,177 +2521,202 @@ html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass]::after {
       };
     }
 
-    /** Surfaces grow out of what opened them: the latest press sets the origin. A menu that
-        opens against the button that was pressed grows out of that button's own box, so the
-        glass that opens reads as the button's glass drawn out, and its content fades in as it
-        settles. A keyboard-opened surface has no recent press and scales from its centre. */
+    /**
+     * DSH 0.2.2-rc.1 positions the workspace picker with getAnchorRect, but passes
+     * no anchor element to Menu. Its document pointerdown handler therefore closes
+     * the picker on its own button; the button's later click toggles it open again.
+     * Keep that one press inside the trigger, leaving its click and keyboard toggle
+     * to DSH. Attach on the trigger during capture so other document capture listeners
+     * (including animation origins) still run normally. No observers or polling.
+     */
+    function mountWorkspaceToggle() {
+      const TRIGGER = "[class*='_heroWorkspaceRow'] > button[aria-haspopup='menu']";
+      let pending = null;
+      const keepInside = (event) => { pending = null; event.stopPropagation(); };
+      const onDown = (event) => {
+        pending?.removeEventListener('pointerdown', keepInside);
+        pending = null;
+        if (event.button !== 0 || !(event.target instanceof Element)) return;
+        const trigger = event.target.closest(TRIGGER);
+        if (trigger?.getAttribute('aria-expanded') !== 'true') return;
+        pending = trigger;
+        trigger.addEventListener('pointerdown', keepInside, { once: true });
+      };
+      document.addEventListener('pointerdown', onDown, { capture: true, passive: true });
+      return () => {
+        document.removeEventListener('pointerdown', onDown, { capture: true });
+        pending?.removeEventListener('pointerdown', keepInside);
+        pending = null;
+      };
+    }
+
+    /** Surfaces grow slightly once; DSH owns their dismiss/replace lifecycle. Never resurrect
+        removed React nodes: a native fade has already finished by the time they unmount. */
     function mountOrigin() {
       const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+      const SURFACES = "[data-menu-material], [role='dialog']";
+      const surfaces = new Map();
+      const pending = new Set();
+      let frame = 0;
       let press = null;
-      /** Menus that grew from a button: how far they came, and the animation that brought them. */
-      const grown = new WeakMap();
-      /** Surfaces DSH has removed that are still playing out. */
-      const leaving = new Map();
       const still = () => reducedMotion.matches || document.documentElement.dataset.lgMotion === 'off';
       const onDown = (event) => {
+        if (event.button !== 0) return;
         const trigger = event.target instanceof Element ? event.target.closest('button, [role="button"], [role="combobox"]') : null;
-        press = { x: event.clientX, y: event.clientY, at: performance.now(), box: trigger?.getBoundingClientRect() ?? null };
+        press = { at: performance.now(), box: trigger?.getBoundingClientRect() ?? null };
       };
-      /** Where a running scale has got to. Works on a removed surface, unlike its computed style. */
-      const scaleOf = ({ shell, from, to }) => {
-        const progress = shell.effect.getComputedTiming().progress ?? 1;
-        return [0, 1].map((axis) => from[axis] + (to[axis] - from[axis]) * progress);
+      const onKey = () => { press = null; };
+      const restore = (surface, entry) => {
+        entry.animation?.cancel();
+        surface.style.transformOrigin = entry.origin;
+        surface.removeAttribute('data-lg-origin');
+        pending.delete(surface);
+        surfaces.delete(surface);
       };
-      /** Reopened before it had gone: stop the leaving menu and hand over where it had got to. */
-      const takeOver = (box) => {
-        for (const exit of leaving.values()) {
-          if (!exit.box || Math.abs(exit.box.left - box.left) > 1 || Math.abs(exit.box.top - box.top) > 1) continue;
-          const scale = scaleOf(exit);
-          exit.stop();
-          return scale;
+      const place = (surface, entry) => {
+        if (entry.placed || !surface.isConnected) return;
+        if (/^(dismiss|replace)$/.test(surface.getAttribute('data-menu-phase') ?? '')) {
+          pending.delete(surface);
+          return;
         }
-        return null;
-      };
-      const grow = (surface, from) => {
-        if (still() || typeof surface.animate !== 'function') return false;
-        const width = surface.offsetWidth;
-        const height = surface.offsetHeight;
-        if (!width || !height) return false;
-        // The box without the running scale, which keeps the centre where it is.
         const box = surface.getBoundingClientRect();
-        const left = box.left + box.width / 2 - width / 2;
-        const top = box.top + box.height / 2 - height / 2;
-        // Only a menu that opens against its button; one further away was opened by something else.
-        const gapX = Math.max(left - from.right, from.left - (left + width), 0);
-        const gapY = Math.max(top - from.bottom, from.top - (top + height), 0);
-        if (Math.hypot(gapX, gapY) > 24) return false;
-        const sx = Math.min(Math.max(from.width / width, 0.2), 1);
-        const sy = Math.min(Math.max(from.height / height, 0.2), 1);
-        surface.style.transformOrigin = `${Math.round(from.left + from.width / 2 - left)}px ${Math.round(from.top + from.height / 2 - top)}px`;
-        const { easing, ms: duration } = appleSpring();
-        // The menu unmounts when it closes, so the stylesheet's pop stays off for its lifetime.
-        surface.style.animation = 'none';
-        const start = takeOver(from) ?? [sx, sy];
-        const shell = surface.animate([{ scale: `${start[0].toFixed(3)} ${start[1].toFixed(3)}` }, { scale: '1 1' }], { duration, easing });
-        grown.set(surface, { shell, from: start, to: [1, 1], rest: [sx, sy], box: from });
-        for (const child of surface.children) {
-          if (child.matches('[data-lg-glass], [data-lg-sheen], [class*="_material_"]')) continue;
-          child.animate([{ opacity: 0 }, { opacity: 0, offset: 0.25 }, { opacity: 1 }], { duration: duration * 0.7, easing: 'ease-out' });
+        // Hidden/zero-sized portals are retried; being observed is not being placed.
+        if (!surface.offsetWidth || !surface.offsetHeight || !box.width || !box.height) return;
+        entry.placed = true;
+        pending.delete(surface);
+        const from = entry.press?.box;
+        const fresh = entry.press && performance.now() - entry.press.at < 600;
+        const gap = from ? Math.hypot(Math.max(box.left - from.right, from.left - box.right, 0), Math.max(box.top - from.bottom, from.top - box.bottom, 0)) : Infinity;
+        surface.style.transformOrigin = fresh && gap <= 24
+          ? `${Math.round(Math.max(0, Math.min(box.width, from.left + from.width / 2 - box.left)))}px ${Math.round(Math.max(0, Math.min(box.height, from.top + from.height / 2 - box.top)))}px`
+          : '50% 50%';
+        if (still() || typeof surface.animate !== 'function') return;
+        const { easing, ms } = appleSpring();
+        const amount = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lg-motion')) || 1;
+        // A small uniform scale keeps text readable even when the trigger is tiny.
+        // Native menu phases fade their own content; no second opacity track or hidden hold.
+        entry.animation = surface.animate([{ scale: String(1 - .015 * amount) }, { scale: '1' }], { duration: Math.min(ms, 200), easing });
+        entry.animation.finished.catch(() => {});
+      };
+      const retry = () => {
+        frame = 0;
+        for (const surface of pending) {
+          const entry = surfaces.get(surface);
+          if (!surface.isConnected) { restore(surface, entry); continue; }
+          place(surface, entry);
+          if (performance.now() >= entry.until) pending.delete(surface);
         }
-        return true;
+        if (pending.size) frame = requestAnimationFrame(retry);
       };
-      const placed = new WeakSet();
-      const place = (surface) => {
-        if (placed.has(surface)) return;
-        placed.add(surface);
-        if (press === null || performance.now() - press.at > 600) return;
-        if (surface.matches('[data-menu-material]') && press.box && grow(surface, press.box)) return;
-        const box = surface.getBoundingClientRect();
-        const x = Math.min(Math.max(press.x - box.left, 0), box.width);
-        const y = Math.min(Math.max(press.y - box.top, 0), box.height);
-        surface.style.transformOrigin = `${Math.round(x)}px ${Math.round(y)}px`;
-      };
-      // Runs before the new surface is painted. animationstart comes at least a frame later, by
-      // which time a menu has been seen at the pop's full size, and pulling it back to its button
-      // then reads as a second bounce.
-      const SURFACES = "[data-menu-material], [role='dialog']";
-      /**
-       * Layer by layer, the contents first and the glass last. Never the opacity of anything around
-       * the filter, which sits on the glass layer's <b>: while that animates the filter can see
-       * nothing behind it and shows its raw map, a grey sheet.
-       */
-      const fadeLayers = (menu) => {
-        const last = [{ opacity: 1 }, { opacity: 1, offset: 0.6 }, { opacity: 0 }];
-        const timing = { duration: LEAVE_MS, fill: 'forwards' };
-        const animations = [menu.animate({ borderColor: 'transparent', boxShadow: '0 0 0 0 transparent' }, { ...timing, easing: OUT })];
-        for (const child of menu.children) {
-          if (child.matches('[data-lg-glass]')) {
-            const filter = child.querySelector(':scope > b');
-            if (filter) animations.push(filter.animate(last, timing));
-            animations.push(child.animate(last, { ...timing, pseudoElement: '::after' }));
-          } else if (child.matches('[data-lg-sheen], [class*="_material_"]')) {
-            animations.push(child.animate(last, timing));
-          } else {
-            animations.push(child.animate([{ opacity: 1 }, { opacity: 0 }], { ...timing, duration: LEAVE_MS * 0.6 }));
-          }
+      const add = (surface) => {
+        let entry = surfaces.get(surface);
+        if (!entry) {
+          entry = { origin: surface.style.transformOrigin, animation: null, placed: false, press, until: performance.now() + 300 };
+          surfaces.set(surface, entry);
+          // Suppress the CSS fallback before the first paint, not at animationstart a frame later.
+          surface.setAttribute('data-lg-origin', '');
         }
-        return animations;
+        place(surface, entry);
+        if (!entry.placed && !/^(dismiss|replace)$/.test(surface.getAttribute('data-menu-phase') ?? '')) pending.add(surface);
+        if (pending.size && !frame) frame = requestAnimationFrame(retry);
       };
-      /** A menu goes back into its button, from wherever it has got to. */
-      const shrink = (menu) => {
-        if (reducedMotion.matches) return { animations: fadeLayers(menu) };
-        const record = grown.get(menu);
-        if (!record) {
-          const settle = menu.animate([{ scale: 1 }, { scale: 0.96 }], { duration: LEAVE_MS, easing: OUT, fill: 'forwards' });
-          return { animations: [settle, ...fadeLayers(menu)] };
-        }
-        const from = scaleOf(record);
-        record.shell.cancel();
-        const shell = menu.animate(
-          [{ scale: `${from[0].toFixed(3)} ${from[1].toFixed(3)}` }, { scale: `${record.rest[0].toFixed(3)} ${record.rest[1].toFixed(3)}` }],
-          { duration: LEAVE_MS, easing: OUT, fill: 'forwards' },
-        );
-        return { animations: [shell, ...fadeLayers(menu)], shell, from, to: record.rest, box: record.box };
+      const visit = (node, fn) => {
+        if (!(node instanceof HTMLElement)) return;
+        if (node.matches(SURFACES)) fn(node);
+        for (const surface of node.querySelectorAll(SURFACES)) fn(surface);
       };
-      /** A dialog sinks back the way it rose. Its layers fade apart for the same reason as a menu's. */
-      const sink = (root, dialog) => ({
-        animations: [
-          ...(root === dialog ? [root] : [...root.children]).map((layer) => layer.animate([{ opacity: 1 }, { opacity: 0 }], { duration: LEAVE_MS, easing: 'ease-out', fill: 'forwards' })),
-          ...(reducedMotion.matches ? [] : [dialog.animate([{ scale: '1', translate: '0 0' }, { scale: '.97', translate: '0 6px' }], { duration: LEAVE_MS, easing: OUT, fill: 'forwards' })]),
-        ],
-      });
-      /** Inert, so the next click goes straight through to the page: nobody waits for this. */
-      const leave = (node, play) => {
-        node.setAttribute('data-lg-leaving', '');
-        node.inert = true;
-        document.body.append(node);
-        const exit = play();
-        exit.stop = () => exit.animations.forEach((animation) => animation.cancel());
-        leaving.set(node, exit);
-        const gone = () => {
-          leaving.delete(node);
-          node.remove();
-        };
-        Promise.allSettled(exit.animations.map((animation) => animation.finished)).then(gone);
-      };
-      const onBody = (records) => {
-        let replaced = false;
+      const observer = new MutationObserver((records) => {
         for (const record of records) {
-          for (const node of record.addedNodes) {
-            if (!(node instanceof HTMLElement) || node.hasAttribute('data-lg-leaving')) continue;
-            const surface = node.matches(SURFACES) ? node : node.querySelector(SURFACES);
-            if (!surface) continue;
-            place(surface);
-            replaced ||= surface.matches('[data-menu-material]');
-          }
-          if (document.documentElement.dataset.lgMotion === 'off') continue;
-          for (const node of record.removedNodes) {
-            if (!(node instanceof HTMLElement) || node.hasAttribute('data-lg-leaving')) continue;
-            if (node.matches('[data-menu-material]')) {
-              leave(node, () => shrink(node));
-              continue;
-            }
-            const dialog = node.matches("[role='dialog']") ? node : node.querySelector("[role='dialog']");
-            if (dialog) leave(node, () => sink(node, dialog));
-          }
+          if (record.type === 'attributes') { add(record.target); continue; }
+          for (const node of record.addedNodes) visit(node, add);
         }
-        // Sliding along a menu bar: the next menu is already there, so the last one just goes.
-        if (replaced) for (const [node, exit] of leaving) if (node.matches('[data-menu-material]')) exit.stop();
-      };
-      // For a surface that does not arrive as a child of the body.
-      const onStart = (event) => {
-        if (event.animationName !== 'glass-pop' && event.animationName !== 'glass-sheet') return;
-        if (event.target instanceof HTMLElement) place(event.target);
-      };
-      const observer = new MutationObserver(onBody);
-      observer.observe(document.body, { childList: true });
+        // A remove+add in one batch is a DOM move, not a dismiss.
+        for (const [surface, entry] of surfaces) if (!surface.isConnected) restore(surface, entry);
+      });
+      observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-menu-phase'] });
       document.addEventListener('pointerdown', onDown, { capture: true, passive: true });
-      document.addEventListener('animationstart', onStart, true);
+      document.addEventListener('keydown', onKey, true);
       return () => {
         observer.disconnect();
+        cancelAnimationFrame(frame);
         document.removeEventListener('pointerdown', onDown, { capture: true });
-        document.removeEventListener('animationstart', onStart, true);
-        for (const exit of leaving.values()) exit.stop();
+        document.removeEventListener('keydown', onKey, true);
+        for (const [surface, entry] of surfaces) restore(surface, entry);
+      };
+    }
+
+    /**
+     * The view tabs' thumb is a drop of glass, not a sliding block. Anchor positioning puts it on
+     * the new tab at once; this plays the journey on its ::before as a transform sampled from
+     * dropletFrames, so it runs on the compositor at the display's rate while the shell renders
+     * the new view (a left/width transition ran on the main thread, behind that work). A change
+     * mid-way starts from where the thumb is drawn, not from where it was going.
+     */
+    function mountDroplet() {
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+      const TABS = '[data-conversation-tabs]';
+      const off = () => reducedMotion.matches || document.documentElement.dataset.lgMotion === 'off';
+      const amount = () => MOTION[document.documentElement.dataset.lgMotion]?.[0] ?? 1;
+      const placed = new WeakMap();
+      const running = new WeakMap();
+      const measure = (tabs) => {
+        const tab = tabs.querySelector(":scope > [role='tab'][aria-selected='true']");
+        if (!tab) return null;
+        const outer = tabs.getBoundingClientRect();
+        const box = tab.getBoundingClientRect();
+        return box.width ? { start: box.left - outer.left, size: box.width } : null;
+      };
+      // Where the thumb is drawn now: its final box under whatever transform is playing.
+      const drawn = (tabs) => {
+        const run = running.get(tabs);
+        if (!run || run.animation.playState !== 'running') return placed.get(tabs) ?? null;
+        const m = new DOMMatrixReadOnly(getComputedStyle(tabs, '::before').transform);
+        return { start: run.to.start + m.e, size: run.to.size * m.a };
+      };
+      const remember = (tabs) => { if (!placed.has(tabs) && !running.has(tabs)) { const box = measure(tabs); if (box) placed.set(tabs, box); } };
+      const move = (tabs) => {
+        const to = measure(tabs);
+        if (!to) return;
+        const from = drawn(tabs);
+        running.get(tabs)?.animation.cancel();
+        running.delete(tabs);
+        placed.set(tabs, to);
+        if (!from || off() || typeof tabs.animate !== 'function') return;
+        if (Math.abs(from.start - to.start) < 0.5 && Math.abs(from.size - to.size) < 0.5) return;
+        // The bar scrolls sideways when narrow, so the drop must stay inside its padding box: a
+        // rebound past the end showed a scrollbar for a moment and cut the thumb off.
+        const { frames, duration } = dropletFrames(from, to, amount(), 60, { min: 0, max: tabs.clientWidth });
+        // Transform only: the origin is static in the sheet, because transform-origin in a keyframe
+        // cannot run on the compositor and takes the whole animation to the main thread with it.
+        const animation = tabs.animate(frames.map((f) => ({
+          offset: f.offset,
+          transform: `translateX(${f.shift.toFixed(2)}px) scale(${f.along.toFixed(4)}, ${f.across.toFixed(4)})`,
+        })), { pseudoElement: '::before', duration: duration * 1000, easing: 'linear' });
+        running.set(tabs, { animation, to });
+        animation.finished.then(() => { if (running.get(tabs)?.animation === animation) running.delete(tabs); }, () => {});
+      };
+      // The thumb's box before a change: a tab bar seen for the first time has none yet.
+      const before = (event) => {
+        const tabs = event.target instanceof Element ? event.target.closest(TABS) : null;
+        if (tabs) remember(tabs);
+      };
+      for (const tabs of document.querySelectorAll(TABS)) remember(tabs);
+      const observer = new MutationObserver((records) => {
+        const moved = new Set();
+        for (const record of records) {
+          const tabs = record.target.parentElement;
+          if (tabs?.matches(TABS) && record.target.getAttribute('aria-selected') === 'true') moved.add(tabs);
+        }
+        for (const tabs of moved) move(tabs);
+      });
+      observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['aria-selected'] });
+      document.addEventListener('pointerdown', before, { capture: true, passive: true });
+      document.addEventListener('keydown', before, true);
+      return () => {
+        observer.disconnect();
+        document.removeEventListener('pointerdown', before, { capture: true });
+        document.removeEventListener('keydown', before, true);
+        for (const tabs of document.querySelectorAll(TABS)) running.get(tabs)?.animation.cancel();
       };
     }
 
@@ -2470,111 +2829,288 @@ html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass]::after {
     /* Motion has four tiers, and everything moves on one of them.
          instant  --glass-instant, .1s: hover and colour, no spring.
          control  --glass-control, .2s: a state changing in place.
-         spring   --glass-spring-duration on --glass-spring: press, switches, menus. The one
+         spring   --glass-spring-duration on --glass-spring: switches and surfaces. The one
                   tier the motion setting changes.
          page     at most PAGE_MS: the page itself changing, so never stretched by that setting.
-                  Parts of a page ride along on RISE, for PART_MS, or SHORT_PART_MS when the
-                  change is one people make all day.
-       Leaving is quicker than arriving: LEAVE_MS on OUT, which gathers speed and is gone.
+                  Parts of a page ride along on RISE for PART_MS, without a delayed start.
+       DSH owns menu dismissal; the theme never reattaches removed surfaces for a second exit.
        Frequent actions get the short version or none. Typing gets none. */
-    const PAGE_MS = 500;
-    const PART_MS = 300;
-    const SHORT_PART_MS = 240;
-    const LEAVE_MS = 180;
+    const PAGE_MS = 260;
+    const PART_MS = 160;
     const RISE = 'cubic-bezier(.22, 1, .36, 1)';
-    const OUT = 'cubic-bezier(.4, 0, 1, 1)';
 
     /** The theme's spring as an easing, and its length in ms under the motion setting. */
     function appleSpring() {
       const style = getComputedStyle(document.documentElement);
       const easing = (style.getPropertyValue('--glass-spring') || getComputedStyle(document.body).getPropertyValue('--glass-spring')).trim() || 'ease-out';
-      return { easing, ms: (parseFloat(style.getPropertyValue('--glass-spring-duration')) || 0.36) * 1000 };
+      return { easing, ms: (parseFloat(style.getPropertyValue('--glass-spring-duration')) || 0.2) * 1000 };
     }
 
     /**
-     * Awakening, Continuity, Home: one space, with the interface waking inside it.
-     *
-     * A cold start has the short ritual. The veil wears the page's own background, so lifting it
-     * only reveals what is waking: the whale leaves for its place in the title, and the title, the
-     * option row and the composer follow it in. All of that lands on the page's real elements, so
-     * the last frame of the boot is the first frame of the start page.
-     *
-     * Leaving a conversation for a new start page is the same space again, shorter: what was on
-     * screen dissolves where it stands while the composer glides back up.
-     *
-     * Four rules hold for all of it.
-     *   Only a cold start plays the ritual. A refresh just lifts the veil.
-     *   The page takes input as soon as it exists. Nothing here waits for an animation.
-     *   Whatever happens next settles from where things are: input hurries the animations to their
-     *   end, and a resize or a change of page hands over to the real elements.
-     *   Reduced motion keeps the fades and drops the travel.
+     * Liquid motion. Glass that moves like a liquid has surface tension: it gives a little, runs
+     * past where it is going and gathers itself in one soft rebound, never a bounce. Each spring is
+     * sampled once into a linear() easing or into keyframes, so the compositor plays it at the
+     * display's full rate with no script per frame, whatever the shell is doing.
+     *   response   period in seconds
+     *   damping    ratio; .7 runs about 4.6% past and comes back once
      */
+    const liquidCurves = new Map();
+    function springCurve(response, damping, steps = 48) {
+      const key = `${response}/${damping}/${steps}`;
+      let curve = liquidCurves.get(key);
+      if (curve) return curve;
+      const omega = (2 * Math.PI) / response;
+      const decay = damping * omega;
+      const turn = omega * Math.sqrt(Math.max(1e-6, 1 - damping * damping));
+      const at = (t) => (t <= 0 ? 0 : 1 - Math.exp(-decay * t) * (Math.cos(turn * t) + (decay / turn) * Math.sin(turn * t)));
+      // Over once what is left is under a thousandth of the way.
+      const duration = Math.log(1000) / decay;
+      const values = Array.from({ length: steps + 1 }, (_, i) => (i === steps ? 1 : at((duration * i) / steps)));
+      curve = { at, duration, easing: `linear(${values.map((v) => +v.toFixed(4)).join(', ')})` };
+      liquidCurves.set(key, curve);
+      return curve;
+    }
+
+    /**
+     * A drop moving from one box to another along one axis: the leading edge rides a quick spring
+     * and the trailing edge a slower one, so on the way it stretches and, keeping its volume,
+     * thins; on arrival the leading edge runs a touch past and both settle. Boxes are { start,
+     * size } on the moving axis. Returns keyframes against the final box with the transform origin
+     * at its start: translate, scale along, scale across. amount 0 keeps it rigid. bounds { min,
+     * max } is the wall it meets: the edge running past stops there and the drop flattens against
+     * it, since a transform past a scrolling bar's edge would scroll it.
+     */
+    function dropletFrames(from, to, amount = 1, steps = 60, bounds = null) {
+      const lead = springCurve(0.26, 0.72);
+      const trail = springCurve(0.4, 0.8);
+      const duration = Math.max(lead.duration, trail.duration);
+      const forward = to.start + to.size / 2 >= from.start + from.size / 2;
+      const frames = [];
+      for (let i = 0; i <= steps; i++) {
+        const t = (duration * i) / steps;
+        const b = trail.at(t);
+        const a = b + (lead.at(t) - b) * amount;
+        const head = forward ? a : b;
+        const tail = forward ? b : a;
+        let start = from.start + (to.start - from.start) * tail;
+        let end = from.start + from.size + (to.start + to.size - from.start - from.size) * head;
+        if (bounds) {
+          start = Math.max(start, bounds.min);
+          end = Math.min(end, bounds.max);
+        }
+        const size = Math.max(1, end - start);
+        // How much longer than it would be with both edges together, which it pays for in girth.
+        const rest = from.size + (to.size - from.size) * b;
+        const across = Math.min(1.06, Math.max(0.82, 1 - 0.35 * (size / Math.max(1, rest) - 1)));
+        frames.push(i === steps
+          ? { offset: 1, shift: 0, along: 1, across: 1 }
+          : { offset: i / steps, shift: start - to.start, along: size / to.size, across });
+      }
+      return { frames, duration };
+    }
+
+    /** Analytic damped spring, matching the CSS curve's .8 damping ratio. */
+    function stepSpring(spring, dt) {
+      const omega = 30;
+      const damping = .8;
+      const frequency = omega * Math.sqrt(1 - damping * damping);
+      const offset = spring.value - spring.target;
+      const decay = Math.exp(-damping * omega * dt);
+      const cosine = Math.cos(frequency * dt);
+      const sine = Math.sin(frequency * dt);
+      const tail = (spring.velocity + damping * omega * offset) / frequency;
+      spring.value = spring.target + decay * (offset * cosine + tail * sine);
+      spring.velocity = decay * (spring.velocity * cosine - (damping * omega * tail + frequency * offset) * sine);
+    }
+
+    /** One owner per page transition, including its snapshots and cancellation cleanup. */
+    function createMotionPlayer() {
+      let current = null;
+      const cancel = () => {
+        const running = current;
+        if (!running) return;
+        current = null;
+        for (const animation of running.animations) animation.cancel();
+        running.finish();
+      };
+      const play = (animations, tidy) => {
+        cancel();
+        let done = false;
+        const running = {
+          animations: animations.filter(Boolean),
+          finish: () => {
+            if (done) return;
+            done = true;
+            if (current === running) current = null;
+            tidy?.();
+          },
+        };
+        current = running;
+        Promise.allSettled(running.animations.map((animation) => animation.finished)).then(running.finish);
+      };
+      return { play, cancel };
+    }
+
+    /** Cold start, first send, return home, sessions and settings share one motion owner.
+        Input never changes playback speed. Navigation replaces the old transition immediately. */
     function mountEntry() {
       const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-      /** The whale is a plugin slot and can come after the page; past this, just lift the veil. */
-      const GIVE_UP_MS = 500;
-      /** Where the whale sits inside the square icon on the veil. */
-      const ICON = { left: 0.02, top: 0.14, width: 0.967, height: 0.726 };
-      /** Drawn this many times under the veil before anything moves, or for this long at most. */
-      const WARM_FRAMES = 3;
-      const WARM_MS = 160;
-      /** Long enough for the page to change, short enough not to match a later change. */
-      const FRESH_MS = 1500;
-      /** How much faster everything finishes once the person has moved on. */
-      const HURRY = 3;
-      const HAND_OVER_MS = 120;
-      const DISSOLVE_MS = 200;
       const html = document.documentElement;
-      const SPINNER = '[data-dsh-boot-spinner]';
+      const player = createMotionPlayer();
+      const FRESH_MS = 1500;
+      const NAV = "[data-slot='sidebar'], [data-slot^='sidebar.'], [data-conversation-tabs], a[href]";
+      let intent = null;
       let timer = 0;
+      let warmFrame = 0;
       let goneAt = 0;
-      let playing = null;
-      let glide = null;
-      let lastBox = null;
-      let watching = 0;
-      const rootOf = () => document.querySelector("[class*='an3WzG_root']");
-      const fishOf = (root) => root?.querySelector("svg[class*='WOwLGG_fish']");
-      const markOf = () => [...document.querySelectorAll('#dsh-boot .dsh-boot-mark')].find((image) => image.getBoundingClientRect().width > 0);
-      let phase = rootOf()?.dataset.phase;
-      const off = () => html.dataset.lgMotion === 'off';
-      const lift = () => {
-        delete html.dataset.lgEntry;
+      let disposed = false;
+      const off = () => reducedMotion.matches || html.dataset.lgMotion === 'off';
+      const lift = () => { delete html.dataset.lgEntry; };
+      // Initial shell hydration is not navigation. Keep ownership until the whale has
+      // handed over, unless the user actually navigates or the destination changes.
+      const boot = document.querySelector('#dsh-boot');
+      const bootStyle = boot ? getComputedStyle(boot) : null;
+      const bootVisible = boot && (document.querySelector('[data-dsh-boot-spinner]')
+        || bootStyle.display !== 'none' && bootStyle.visibility !== 'hidden');
+      let booting = performance.getEntriesByType('navigation')[0]?.type === 'navigate'
+        && !!bootVisible && !boot.dataset.lgBootClaimed && !off();
+      if (booting) boot.dataset.lgBootClaimed = 'true';
+      let bootRoot = null;
+      const releaseBoot = () => { booting = false; bootRoot = null; lift(); };
+      const read = () => {
+        const main = document.querySelector('[data-slot="main"]');
+        const root = main?.querySelector("[class*='an3WzG_root']") ?? null;
+        const content = main?.firstElementChild;
+        const selected = document.querySelector("[data-slot='sidebar'] [aria-selected='true'], [data-slot^='sidebar.'] [aria-current='page']");
+        return {
+          main, root, content, phase: root?.dataset.phase,
+          card: root?.querySelector('[data-composer-card]'),
+          view: root?.querySelector("[class*='an3WzG_viewArea']") ?? content,
+          selection: `${selected?.getAttribute('data-session-id') ?? selected?.textContent ?? ''}|${root?.querySelector("[data-conversation-tabs] [aria-selected='true']")?.textContent ?? ''}`,
+          title: document.title,
+          heading: main?.querySelector('h1, h2')?.textContent,
+        };
       };
-      const arrive = (el, delay, duration, reach) => el?.animate(
-        [{ opacity: 0, translate: `0 ${reach}px` }, { opacity: 1, translate: '0 0' }],
-        { duration, delay, easing: RISE, fill: 'backwards' },
-      );
-      /** What is playing, how to hand it over to the real page, and what to clear up afterwards. */
-      const play = (animations, handOver, tidy) => {
-        const running = { animations: animations.filter(Boolean), handOver };
-        playing = running;
-        Promise.allSettled(running.animations.map((animation) => animation.finished)).then(() => {
-          if (playing === running) playing = null;
-          tidy?.();
-        });
+      let previous = read();
+      const incoming = (element, reach = 4) => {
+        if (!element) return null;
+        // Fading an ancestor of a glass layer disconnects its filter from the backdrop.
+        const glass = element.matches('[data-composer-card], [data-lg-lens]') || element.querySelector('[data-composer-card], [data-lg-glass]');
+        const start = { translate: `0 ${reach}px`, ...(glass ? {} : { opacity: .94 }) };
+        const end = { translate: '0 0', ...(glass ? {} : { opacity: 1 }) };
+        return element.animate([start, end], { duration: PART_MS, easing: RISE });
       };
-      const hurry = () => playing?.animations.forEach((animation) => animation.updatePlaybackRate(HURRY));
-      const settle = () => {
-        playing?.handOver?.();
-        hurry();
+      const snapshotParts = (root) => [...(root?.querySelectorAll("[class*='WOwLGG_root'], [class*='an3WzG_heroWorkspaceRow']") ?? [])]
+        .map((part) => ({ copy: part.cloneNode(true), box: part.getBoundingClientRect() }))
+        .filter(({ box }) => box.width && box.height);
+      const arm = (kind) => {
+        const before = read();
+        if (!before.main) return;
+        intent = { before, kind, at: performance.now(), box: before.card?.getBoundingClientRect(), parts: kind === 'send' ? snapshotParts(before.root) : [] };
+      };
+      const onDown = (event) => {
+        if (event.button !== 0 || !(event.target instanceof Element)) return;
+        if (event.target.closest("[data-composer-card] button[class*='_primary']")) arm('send');
+        else if (event.target.closest(NAV)) arm('navigate');
+      };
+      const onKey = (event) => {
+        if (event.isComposing) return;
+        if (event.key === 'Enter' && !event.shiftKey && event.target instanceof Element && event.target.closest('[data-composer-card]')) arm('send');
+        else if ((event.ctrlKey || event.metaKey) && ['n', ',', 'Tab', 'PageUp', 'PageDown'].includes(event.key) || event.altKey && ['ArrowLeft', 'ArrowRight'].includes(event.key)
+          || ['Enter', ' '].includes(event.key) && event.target instanceof Element && event.target.closest(NAV)) arm('navigate');
+      };
+      const transition = (before, next, action) => {
+        // Sample the previous visual position at input time, then remove its old transform
+        // before measuring the new layout. This carries a rapid reversal from the visible box.
+        player.cancel();
+        clearTimeout(timer);
+        cancelAnimationFrame(warmFrame);
+        releaseBoot();
+        if (off()) return;
+        const animations = [];
+        const copies = [];
+        const heroBoundary = before.phase === 'hero' && next.phase === 'active' || before.phase === 'active' && next.phase === 'hero';
+        const from = action?.box;
+        if (heroBoundary && from && next.card) {
+          const to = next.card.getBoundingClientRect();
+          const { easing, ms } = appleSpring();
+          if (to.width && to.height) animations.push(next.card.animate([
+            { translate: `${(from.left + from.width / 2 - to.left - to.width / 2).toFixed(1)}px ${(from.top + from.height / 2 - to.top - to.height / 2).toFixed(1)}px` },
+            { translate: '0 0' },
+          ], { duration: Math.min(ms * 1.1, PAGE_MS), easing }));
+        }
+        if (next.phase === 'hero') {
+          animations.push(incoming(next.root?.querySelector("[class*='WOwLGG_root']")), incoming(next.root?.querySelector("[class*='an3WzG_heroWorkspaceRow']")));
+        } else animations.push(incoming(next.view));
+        if (before.phase === 'hero' && next.phase === 'active' && action?.kind === 'send') {
+          for (const { copy, box } of action.parts) {
+            copy.style.cssText += `;position:fixed;left:${box.left}px;top:${box.top}px;width:${box.width}px;height:${box.height}px;margin:0;z-index:20;pointer-events:none`;
+            copy.setAttribute('aria-hidden', 'true');
+            copy.inert = true;
+            copy.removeAttribute('id');
+            for (const child of copy.querySelectorAll('[id]')) child.removeAttribute('id');
+            document.body.append(copy);
+            copies.push(copy);
+            animations.push(copy.animate([{ opacity: 1, translate: '0 0' }, { opacity: 0, translate: '0 -4px' }], { duration: PART_MS, easing: 'ease-out', fill: 'forwards' }));
+          }
+          if (from) window.dispatchEvent(new CustomEvent('dsh-glass:splash', { detail: { left: from.left, top: from.top, width: from.width, height: from.height } }));
+        }
+        player.play(animations, () => copies.forEach((copy) => copy.remove()));
+      };
+      const onChange = (records) => {
+        const action = intent && performance.now() - intent.at < FRESH_MS ? intent : null;
+        if (!action) intent = null;
+        // Streamed message children do not schedule page transitions or document scans.
+        const relevant = action || !previous.content?.isConnected || previous.root && !previous.root.isConnected
+          || records.some((record) => record.type === 'attributes' && record.attributeName === 'data-phase'
+            || record.type === 'childList' && (record.target === previous.main || record.target instanceof Element && record.target.matches('[data-slot="main"]')));
+        if (!relevant) return;
+        const next = read();
+        if (!next.main || next.phase === 'settling') return;
+        if (booting && !action) {
+          previous = next;
+          // A restored conversation has no home whale to land on. A replaced home
+          // must not leave an animation running against detached elements either.
+          if (next.phase === 'active' || bootRoot && next.root !== bootRoot) {
+            clearTimeout(timer);
+            cancelAnimationFrame(warmFrame);
+            player.cancel();
+            releaseBoot();
+          }
+          return;
+        }
+        const before = action?.before ?? previous;
+        const changed = next.content !== previous.content || next.root !== previous.root || next.phase !== previous.phase || next.view !== previous.view
+          || action && (next.selection !== before.selection || next.title !== before.title || next.heading !== before.heading);
+        previous = next;
+        if (!changed) return;
+        intent = null;
+        transition(before, next, action);
       };
 
-      /* ── Awakening ─────────────────────────────────────────────────────── */
+      /* Cold launch has its own choreography; menu/control timings must not compress it. */
       const enter = (root, fish, mark) => {
-        const { easing, ms } = appleSpring();
+        player.cancel();
+        bootRoot = root;
         const at = mark.getBoundingClientRect();
         const to = fish.getBoundingClientRect();
-        const from = { left: at.left + at.width * ICON.left, top: at.top + at.height * ICON.top, width: at.width * ICON.width, height: at.height * ICON.height };
-        // The same paper as the page, so the veil's fade changes nothing but what is waking.
+        const from = { left: at.left + at.width * .02, top: at.top + at.height * .14, width: at.width * .967, height: at.height * .726 };
+        if (!from.width || !to.width) return releaseBoot();
+        // Match the page's paper before fading the veil, avoiding a colour jump at handoff.
         const veil = document.querySelector('#dsh-boot .dsh-boot-sheet');
         const paper = getComputedStyle(document.body);
         if (veil) {
           veil.style.backgroundColor = paper.backgroundColor;
           veil.style.backgroundImage = paper.backgroundImage;
         }
-        // Starts large and shrinks, so it is never a small drawing blown up. An element around the
-        // drawing, because an SVG's transform cannot run on the compositor, and this one has to
-        // keep moving through the longest tasks of the launch.
+        // Fast launches may catch the boot mark during its own arrival fade. Preserve its
+        // visible opacity when replacing it with a flight copy above the veil.
+        let opacity = 1;
+        for (let node = mark; node instanceof Element; node = node.parentElement) {
+          const alpha = Number.parseFloat(getComputedStyle(node).opacity);
+          if (Number.isFinite(alpha)) opacity *= alpha;
+          if (node.id === 'dsh-boot') break;
+        }
         const copy = document.createElement('div');
         copy.setAttribute('data-lg-whale', '');
         copy.setAttribute('aria-hidden', 'true');
@@ -2585,276 +3121,100 @@ html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass]::after {
         copy.append(drawing);
         document.body.append(copy);
         html.dataset.lgEntry = 'run';
-        const flight = Math.min(ms * 1.1, PAGE_MS);
+        const flight = 420, handoff = 80, duration = flight + handoff;
+        const land = flight / duration;
+        const arrive = (element, delay, reach) => element?.animate(
+          [{ opacity: 0, translate: `0 ${reach}px` }, { opacity: 1, translate: '0 0' }],
+          { duration: 260, delay, easing: RISE, fill: 'backwards' },
+        );
         const card = root.querySelector('[data-composer-card]');
-        const hidden = fish.animate([{ opacity: 0 }, { opacity: 0 }], { duration: flight });
-        // The real whale is already where it belongs, so the copy gives way to it where it stands.
-        const handOver = () => {
-          if (hidden.playState === 'finished' || hidden.playState === 'idle') return;
-          hidden.cancel();
-          fish.animate([{ opacity: 0 }, { opacity: 1 }], { duration: HAND_OVER_MS, easing: 'ease-out' });
-          copy.animate([{ opacity: 1 }, { opacity: 0 }], { duration: HAND_OVER_MS, easing: 'ease-out', fill: 'forwards' });
-        };
-        play([
-          copy.animate(
-            [{ transform: 'translate(0, 0) scale(1)' }, { transform: `translate(${to.left - from.left}px, ${to.top - from.top}px) scale(${to.width / from.width})` }],
-            { duration: flight, easing, fill: 'forwards' },
-          ),
-          hidden,
-          arrive(root.querySelector("[class*='WOwLGG_titleGroup']"), 100, PART_MS, 10),
-          arrive(root.querySelector("[class*='an3WzG_heroWorkspaceRow']"), 150, PART_MS, 10),
-          // No opacity on the card: it would cut the glass off from the page. The veil is still
-          // lifting, so the glass is there first and what is on it follows. That also hides the
-          // moment DSH swaps its placeholder once it knows the workspace.
-          card?.animate(
-            [{ translate: '0 16px' }, { translate: '0 0' }],
-            { duration: Math.min(ms, 360), delay: 200, easing, fill: 'backwards' },
-          ),
-          ...[...(card?.children ?? [])]
-            .filter((part) => !part.matches('[data-lg-glass], [data-lg-sheen]'))
-            .map((part) => arrive(part, 260, PART_MS - 40, 0)),
-        ], handOver, () => {
+        const animations = [];
+        try {
+          animations.push(copy.animate([{ transform: 'translate(0, 0) scale(1)' }, { transform: `translate(${to.left - from.left}px, ${to.top - from.top}px) scale(${to.width / from.width})` }], { duration: flight, easing: RISE, fill: 'forwards' }));
+          animations.push(copy.animate([{ opacity }, { opacity: 1, offset: .2 }, { opacity: 1, offset: land }, { opacity: 0 }], { duration, fill: 'forwards' }));
+          // Crossfade only after landing. The real fish and copy share exactly one position.
+          animations.push(fish.animate([{ opacity: 0 }, { opacity: 0, offset: land }, { opacity: 1 }], { duration }));
+          animations.push(arrive(root.querySelector("[class*='WOwLGG_titleGroup']"), 60, 8));
+          animations.push(arrive(root.querySelector("[class*='an3WzG_heroWorkspaceRow']"), 100, 8));
+          // Do not fade the glass card or any ancestor of its backdrop filter.
+          animations.push(card?.animate([{ translate: '0 12px' }, { translate: '0 0' }], { duration: 320, delay: 80, easing: RISE, fill: 'backwards' }));
+          for (const part of card?.children ?? []) {
+            if (!part.matches('[data-lg-glass], [data-lg-sheen]')) animations.push(arrive(part, 120, 0));
+          }
+          player.play(animations, () => { copy.remove(); releaseBoot(); });
+        } catch (error) {
+          for (const animation of animations) if (animation) { animation.finished.catch(() => {}); animation.cancel(); }
           copy.remove();
-          lift();
-        });
+          releaseBoot();
+          throw error;
+        }
       };
-      /** The page already takes input here: the veil no longer catches the pointer. */
-      const warm = (root, fish, mark) => {
+      const warm = (next, fish, mark) => {
         html.dataset.lgEntry = 'warm';
         let frames = 0;
+        let stable = 0;
+        let last = '';
         const begin = () => {
-          if (timer === 0) return;
           clearTimeout(timer);
           timer = 0;
-          // Whatever goes wrong here, the veil must not stay up over a working app.
-          try {
-            enter(root, fish, mark);
-          } catch (error) {
-            console.error('[glass-theme] entry failed', error);
-            lift();
-          }
+          cancelAnimationFrame(warmFrame);
+          warmFrame = 0;
+          if (disposed || !booting || !next.root.isConnected || next.root.dataset.phase !== 'hero' || off()) return releaseBoot();
+          try { enter(next.root, fish, mark); }
+          catch (error) { player.cancel(); releaseBoot(); console.error('[glass-theme] entry failed', error); }
         };
         const count = () => {
-          frames += 1;
-          if (frames >= WARM_FRAMES) begin();
-          else if (timer !== 0) requestAnimationFrame(count);
+          warmFrame = 0;
+          const parts = [fish, next.card].filter(Boolean);
+          const boxes = parts.map((part) => part.getBoundingClientRect());
+          const ready = boxes.every((box) => box.width > 0 && box.height > 0) && mark.complete !== false;
+          const key = boxes.flatMap((box) => [box.left, box.top, box.width, box.height].map((n) => n.toFixed(1))).join(',');
+          stable = ready && key === last ? stable + 1 : 0;
+          last = key;
+          frames++;
+          if (frames >= 3 && stable >= 2) begin();
+          else warmFrame = requestAnimationFrame(count);
         };
-        timer = setTimeout(begin, WARM_MS);
-        requestAnimationFrame(count);
+        // Draw the real homepage under the veil before revealing it. Never keep a working
+        // app covered indefinitely if fonts or plugin slots continue changing its layout.
+        timer = setTimeout(begin, 160);
+        warmFrame = requestAnimationFrame(count);
       };
-      /** The veil stands only until the start page exists, and then the page is live underneath. */
       const waitForHome = () => {
         timer = 0;
-        if (document.querySelector(SPINNER)) {
-          goneAt = 0;
-        } else {
+        if (disposed) return;
+        if (!document.querySelector('[data-dsh-boot-spinner]')) {
           goneAt ||= performance.now();
-          const root = rootOf();
-          const fish = fishOf(root);
-          const mark = markOf();
-          if (root?.dataset.phase === 'hero' && fish && mark) return warm(root, fish, mark);
-          if (root?.dataset.phase === 'active' || performance.now() - goneAt >= GIVE_UP_MS) return lift();
+          const next = read();
+          const fish = next.root?.querySelector("svg[class*='WOwLGG_fish']");
+          const mark = [...document.querySelectorAll('#dsh-boot .dsh-boot-mark')].find((image) => image.getBoundingClientRect().width > 0);
+          if (next.phase === 'hero' && fish && mark) return warm(next, fish, mark);
+          if (next.phase === 'active' || performance.now() - goneAt >= 500) return releaseBoot();
         }
         timer = setTimeout(waitForHome, 16);
       };
-
-      /* ── Continuity ────────────────────────────────────────────────────── */
-      /** The turns on screen, which leave the page with the conversation. Only those: a long chat is heavy. */
-      const onScreen = (root) => {
-        const frame = root.getBoundingClientRect();
-        return [...root.querySelectorAll('[data-chat-turn]')]
-          .filter((node) => !node.parentElement.closest('[data-chat-turn]'))
-          .map((node) => ({ node, box: node.getBoundingClientRect() }))
-          .filter(({ box }) => box.bottom > frame.top && box.top < frame.bottom);
-      };
-      /** Lays them out where they stood, over the new page, and fades them from there. */
-      const dissolve = (root, turns) => {
-        const frame = root.getBoundingClientRect();
-        const sheet = document.createElement('div');
-        sheet.setAttribute('data-lg-leaving', '');
-        sheet.setAttribute('aria-hidden', 'true');
-        sheet.inert = true;
-        sheet.style.cssText = 'position:absolute;inset:0;overflow:hidden;pointer-events:none';
-        for (const { node, box } of turns) {
-          node.style.cssText += `;position:absolute;left:${box.left - frame.left}px;top:${box.top - frame.top}px;width:${box.width}px;margin:0`;
-          sheet.append(node);
-        }
-        root.prepend(sheet);
-        const end = reducedMotion.matches ? { opacity: 0 } : { opacity: 0, translate: '0 -10px' };
-        const start = reducedMotion.matches ? { opacity: 1 } : { opacity: 1, translate: '0 0' };
-        return { sheet, animation: sheet.animate([start, end], { duration: DISSOLVE_MS, easing: 'ease-out', fill: 'forwards' }) };
-      };
-      const back = (root) => {
-        const card = root.querySelector('[data-composer-card]');
-        if (!card) return;
-        const before = lastBox && performance.now() - lastBox.at < FRESH_MS ? lastBox : null;
-        lastBox = null;
-        const ghost = before?.turns.length ? dissolve(root, before.turns) : null;
-        const calm = reducedMotion.matches;
-        const reach = calm ? 0 : 8;
-        let flying = null;
-        if (before && !calm) {
-          const { easing, ms } = appleSpring();
-          const to = card.getBoundingClientRect();
-          flying = card.animate(
-            [{ translate: `${(before.box.left - to.left).toFixed(1)}px ${(before.box.top - to.top).toFixed(1)}px` }, { translate: '0 0' }],
-            { duration: Math.min(ms * 1.1, 400), easing },
-          );
-          glide = { animation: flying, from: before.box, to };
-        }
-        play([
-          flying,
-          ghost?.animation,
-          arrive(root.querySelector("[class*='WOwLGG_root']"), calm ? 0 : 40, SHORT_PART_MS, reach),
-          arrive(root.querySelector("[class*='an3WzG_heroWorkspaceRow']"), calm ? 0 : 80, SHORT_PART_MS, reach),
-        ], null, () => {
-          ghost?.sheet.remove();
-          if (glide?.animation === flying) glide = null;
-        });
-      };
-      /** The page changed under a gliding composer: carry on from where it had got to. */
-      const reland = (root) => {
-        const card = root?.querySelector('[data-composer-card]');
-        if (!glide || !card) return;
-        const { animation, from, to } = glide;
-        const rest = 1 - (animation.effect.getComputedTiming().progress ?? 1);
-        const x = to.left + (from.left - to.left) * rest;
-        const y = to.top + (from.top - to.top) * rest;
-        glide = null;
-        animation.cancel();
-        const box = card.getBoundingClientRect();
-        const { easing, ms } = appleSpring();
-        card.animate([{ translate: `${(x - box.left).toFixed(1)}px ${(y - box.top).toFixed(1)}px` }, { translate: '0 0' }], { duration: Math.min(ms, 360), easing });
-      };
-      // Once the page has changed the composer's old place is gone, so note it as the hand moves.
-      const note = (event) => {
-        if (event.type === 'keydown' && !event.ctrlKey && !event.metaKey) return;
-        const root = rootOf();
-        // Opening a chat builds a new page too, and nothing else would have told us.
-        phase = root?.dataset.phase ?? phase;
-        const card = phase === 'active' ? root?.querySelector('[data-composer-card]') : null;
-        if (!card) return;
-        lastBox = { at: performance.now(), box: card.getBoundingClientRect(), turns: onScreen(root) };
-        // A new session mounts a new start page rather than changing the phase of this one.
-        clearTimeout(watching);
-        built.observe(document.body, { childList: true, subtree: true });
-        watching = setTimeout(() => {
-          built.disconnect();
-          lastBox = null;
-        }, FRESH_MS);
-      };
-      const onPhase = () => {
-        const root = rootOf();
-        const now = root?.dataset.phase;
-        if (now === undefined || now === phase) return;
-        const was = phase;
-        phase = now;
-        if (now !== 'hero') {
-          settle();
-          reland(root);
-        }
-        if (now === 'hero' && was === 'active' && !off()) back(root);
-      };
-      const built = new MutationObserver(onPhase);
-
-      // Only a real launch: a refresh keeps the veil's plain fade.
-      const cold = performance.getEntriesByType('navigation')[0]?.type === 'navigate';
-      if (cold && document.querySelector('#dsh-boot') && document.querySelector(SPINNER) && !reducedMotion.matches && !off()) {
+      if (booting) {
         html.dataset.lgEntry = 'hold';
         waitForHome();
       }
-      for (const type of ['pointerdown', 'wheel']) document.addEventListener(type, hurry, { capture: true, passive: true });
-      document.addEventListener('keydown', hurry, true);
-      document.addEventListener('pointerdown', note, { capture: true, passive: true });
-      document.addEventListener('keydown', note, true);
-      window.addEventListener('resize', settle);
-      const observer = new MutationObserver(onPhase);
-      observer.observe(document.body, { attributes: true, attributeFilter: ['data-phase'], subtree: true });
-      return () => {
-        clearTimeout(timer);
-        clearTimeout(watching);
-        for (const type of ['pointerdown', 'wheel']) document.removeEventListener(type, hurry, { capture: true });
-        document.removeEventListener('keydown', hurry, true);
-        document.removeEventListener('pointerdown', note, { capture: true });
-        document.removeEventListener('keydown', note, true);
-        window.removeEventListener('resize', settle);
-        observer.disconnect();
-        built.disconnect();
-        playing?.animations.forEach((animation) => animation.cancel());
-        lift();
-      };
-    }
-
-    function mountLaunch() {
-      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-      /** Long enough for a slow Host to answer, short enough not to match a later change. */
-      const ARMED_MS = 1500;
-      let armed = null;
-      const rootOf = () => document.querySelector("[class*='an3WzG_root']");
-      const still = () => reducedMotion.matches || document.documentElement.dataset.lgMotion === 'off';
-      const arm = () => {
-        const root = rootOf();
-        if (root?.dataset.phase !== 'hero' || still()) return;
-        const card = root.querySelector('[data-composer-card]');
-        if (!card) return;
-        const parts = [...root.querySelectorAll("[class*='WOwLGG_root'], [class*='an3WzG_heroWorkspaceRow']")]
-          .map((part) => ({ copy: part.cloneNode(true), box: part.getBoundingClientRect() }))
-          .filter(({ box }) => box.width > 0 && box.height > 0);
-        armed = { at: performance.now(), box: card.getBoundingClientRect(), parts };
-      };
-      const onKey = (event) => {
-        if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.target instanceof Element && event.target.closest('[data-composer-card]')) arm();
-      };
-      const onDown = (event) => {
-        if (event.target instanceof Element && event.target.closest("[data-composer-card] button[class*='_primary']")) arm();
-      };
-      const launch = (root, from, parts) => {
-        const card = root.querySelector('[data-composer-card]');
-        if (!card) return;
-        const to = card.getBoundingClientRect();
-        const { easing: spring, ms } = appleSpring();
-        // A longer way to travel than a menu opening, so a longer spring.
-        const duration = Math.min(ms * 1.5, PAGE_MS);
-        const dx = from.left + from.width / 2 - (to.left + to.width / 2);
-        const dy = from.top + from.height / 2 - (to.top + to.height / 2);
-        card.animate(
-          [{ translate: `${dx.toFixed(1)}px ${dy.toFixed(1)}px`, scale: (from.width / to.width).toFixed(4) }, { translate: '0 0', scale: '1' }],
-          { duration, easing: spring },
-        );
-        for (const { copy, box } of parts) {
-          copy.style.cssText += `;position:fixed;left:${box.left}px;top:${box.top}px;width:${box.width}px;height:${box.height}px;margin:0;z-index:20;pointer-events:none`;
-          copy.setAttribute('aria-hidden', 'true');
-          document.body.append(copy);
-          const gone = () => copy.remove();
-          copy.animate([{ opacity: 1, translate: '0 0' }, { opacity: 0, translate: '0 -14px' }], { duration: SHORT_PART_MS, easing: 'ease-out', fill: 'forwards' })
-            .finished.then(gone, gone);
-        }
-        // Not the scroll area: the composer lives in it, and fading its parent would cut the
-        // glass off from the page behind it.
-        root.querySelector("[class*='an3WzG_viewArea']")?.animate(
-          [{ opacity: 0, translate: '0 18px' }, { opacity: 1, translate: '0 0' }],
-          { duration: PAGE_MS - 120, delay: 120, easing: RISE, fill: 'backwards' },
-        );
-        window.dispatchEvent(new CustomEvent('dsh-glass:splash', { detail: { left: from.left, top: from.top, width: from.width, height: from.height } }));
-      };
-      const onPhase = () => {
-        if (armed === null) return;
-        const root = rootOf();
-        const phase = root?.dataset.phase;
-        if (phase === 'hero' || phase === undefined) return;
-        const { at, box, parts } = armed;
-        if (phase === 'settling' && performance.now() - at < ARMED_MS) return;
-        armed = null;
-        if (phase === 'active' && performance.now() - at < ARMED_MS) launch(root, box, parts);
-      };
-      document.addEventListener('keydown', onKey, true);
+      const settle = () => { clearTimeout(timer); cancelAnimationFrame(warmFrame); player.cancel(); releaseBoot(); };
       document.addEventListener('pointerdown', onDown, { capture: true, passive: true });
-      const observer = new MutationObserver(onPhase);
-      observer.observe(document.body, { attributes: true, attributeFilter: ['data-phase'], subtree: true });
+      document.addEventListener('keydown', onKey, true);
+      window.addEventListener('resize', settle);
+      reducedMotion.addEventListener('change', settle);
+      const observer = new MutationObserver(onChange);
+      observer.observe(document.body, { childList: true, attributes: true, attributeFilter: ['data-phase', 'aria-selected', 'aria-current'], subtree: true });
       return () => {
-        document.removeEventListener('keydown', onKey, true);
+        disposed = true;
+        clearTimeout(timer);
+        cancelAnimationFrame(warmFrame);
         document.removeEventListener('pointerdown', onDown, { capture: true });
+        document.removeEventListener('keydown', onKey, true);
+        window.removeEventListener('resize', settle);
+        reducedMotion.removeEventListener('change', settle);
         observer.disconnect();
+        player.cancel();
+        releaseBoot();
       };
     }
 
@@ -3090,6 +3450,7 @@ html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass]::after {
     }
 
     function apply(ctx) {
+      ctx.effect(() => mountWorkspaceToggle(), 'glass-theme: workspace menu toggle');
       let scope = null;
       try {
         const forms = ctx.get('configForms');
@@ -3123,9 +3484,9 @@ html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass]::after {
         let lens = null;
         let dropHighlight = null;
         let dropOrigin = null;
-        let dropLaunch = null;
         let dropWriting = null;
         let dropEntry = null;
+        let dropDroplet = null;
         let dropDepth = null;
         const dropCheck = mountSelfCheck();
         // Read-only, for tools/smoke.mjs: the self-check report as JSON.
@@ -3152,12 +3513,12 @@ html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass]::after {
           else if (!current.glass && dropDepth) { dropDepth(); dropDepth = null; }
           if (current.interaction && !dropOrigin) dropOrigin = mountOrigin();
           else if (!current.interaction && dropOrigin) { dropOrigin(); dropOrigin = null; }
-          if (current.interaction && !dropLaunch) dropLaunch = mountLaunch();
-          else if (!current.interaction && dropLaunch) { dropLaunch(); dropLaunch = null; }
           if (current.interaction && !dropWriting) dropWriting = mountWriting();
           else if (!current.interaction && dropWriting) { dropWriting(); dropWriting = null; }
           if (current.interaction && !dropEntry) dropEntry = mountEntry();
           else if (!current.interaction && dropEntry) { dropEntry(); dropEntry = null; }
+          if (current.interaction && !dropDroplet) dropDroplet = mountDroplet();
+          else if (!current.interaction && dropDroplet) { dropDroplet(); dropDroplet = null; }
 
           // Not just hidden: with no glass to bend, the map and its observers do not run.
           const wanted = current.glass && current.refraction === 'lens' && lensSupported() && !lessTransparency.matches;
@@ -3195,27 +3556,38 @@ html[data-lg-motion="off"] body [data-menu-material] > [data-lg-glass]::after {
         };
         const unsubscribe = scope?.subscribe ? scope.subscribe(fold) : null;
         lessTransparency.addEventListener('change', sync);
-        fold();
+        // A mount that throws must still hand back the cleanup below, or whatever mounted before
+        // it stays attached for the life of the page.
+        try { fold(); } catch (error) { console.error('[glass-theme] apply failed', error); }
         preview = (next) => {
           draft = next;
           sync();
         };
+        // Each step on its own: one that throws must not leave the rest attached. On 2026-11-08 an
+        // older copy of this bundle stayed live after hot reloads, twice over, with its pointer,
+        // key and resize listeners; its highlight still repainted the glass on every pointer move
+        // and held hovering over the composer to about 160 fps.
         return () => {
           preview = null;
-          if (typeof unsubscribe === 'function') unsubscribe();
-          lessTransparency.removeEventListener('change', sync);
-          lens?.dispose();
-          dropCheck();
-          delete globalThis.__dshGlassCheck;
-          dropHighlight?.();
-          dropOrigin?.();
-          dropLaunch?.();
-          dropWriting?.();
-          dropEntry?.();
-          dropDepth?.();
-          dropTokens?.();
-          unpaint();
-          for (const element of Object.values(sheets)) element.remove();
+          const steps = [
+            () => { if (typeof unsubscribe === 'function') unsubscribe(); },
+            () => lessTransparency.removeEventListener('change', sync),
+            () => lens?.dispose(),
+            () => dropCheck(),
+            () => { delete globalThis.__dshGlassCheck; },
+            () => dropHighlight?.(),
+            () => dropOrigin?.(),
+            () => dropWriting?.(),
+            () => dropEntry?.(),
+            () => dropDroplet?.(),
+            () => dropDepth?.(),
+            () => dropTokens?.(),
+            () => unpaint(),
+            () => { for (const element of Object.values(sheets)) element.remove(); },
+          ];
+          for (const step of steps) {
+            try { step(); } catch (error) { console.error('[glass-theme] cleanup step failed', error); }
+          }
         };
       }, 'glass-theme: appearance');
     }

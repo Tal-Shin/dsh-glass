@@ -1,7 +1,0 @@
-# boot-veil bundle patch.
-#
-# One Host-only row: it taps the served index.html and appends a static boot
-# screen. No client module, no request handling of its own.
-- insert:
-    - id: boot-veil
-      name: '@tal-shin/dsh-boot-veil'

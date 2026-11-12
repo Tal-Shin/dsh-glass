@@ -483,6 +483,29 @@ class World {
     this.bites = this.bites.filter((b) => t - b.born < BITE_LIFE);
   }
 
+  /** Advance by any span, in steps no longer than the 1/60 s the steering was tuned at. */
+  advance(dt) {
+    const steps = Math.ceil(dt * 60 - 1e-6);
+    for (let i = 0; i < steps; i++) this.step(dt / steps);
+  }
+
+  /**
+   * Paints a second worth showing: enough that the fastest thing in the pond moves about a
+   * pixel between paints, and no more. Cruising koi, tail-beat rings and bites stay under
+   * 60 px/s, so a calm pond paints 60 times a second; a chase, a fright or the splash rings
+   * raise it to at most 120. Past that a paint moves nothing by a whole pixel on a grid that
+   * samples every 4-7 px, while every paint still makes the glass above re-blur.
+   */
+  paintRate() {
+    let fastest = 0;
+    for (const k of this.koi) if (k.speed > fastest) fastest = k.speed;
+    for (const r of this.ripples) {
+      const v = RIPPLE_SPEED * (0.7 + 0.5 * r.strength) * (r.speed ?? 1);
+      if (v > fastest) fastest = v;
+    }
+    return clamp(fastest, 60, 120);
+  }
+
   stepKoi(k, dt) {
     const { width: W, height: H, pointer, time } = this;
     const L = k.length;
@@ -493,7 +516,10 @@ class World {
     let dx = Math.cos(k.heading);
     let dy = Math.sin(k.heading);
 
-    k.wander = clamp(k.wander + (Math.random() - 0.5) * dt * 2.4, -0.9, 0.9);
+    // A random walk spreads with the square root of time, so its kick does too: the
+    // pond steps at whatever rate it paints, and a fixed kick per step would make koi
+    // wander half as much at 120 steps a second as at 60. Tuned at 1/60 s.
+    k.wander = clamp(k.wander + (Math.random() - 0.5) * Math.sqrt(dt / 60) * 2.4, -0.9, 0.9);
     dx += Math.cos(k.heading + k.wander) * 0.6;
     dy += Math.sin(k.heading + k.wander) * 0.6;
 
@@ -1191,7 +1217,7 @@ class KoiRenderer {
     this.cellShadow.fill(0);
     // Deeper koi first, so the ones near the surface glide over them.
     for (const k of [...world.koi].sort((a, b) => a.depth - b.depth)) this.rasterizeKoi(k, world.time);
-    this.depositWake(world);
+    this.depositWake(world, dt);
     this.diffuse(dt);
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -1565,36 +1591,53 @@ class KoiRenderer {
 
   // ── water ───────────────────────────────────────────────────────────
 
-  depositWake(world) {
+  // Energy per second rather than per paint, so the wake is as bright at 24 paints a
+  // second as at 60. The amounts were tuned at one paint every 1/60 s.
+  depositWake(world, dt) {
     const { energy } = this;
+    const rate = dt * 60;
     for (const k of world.koi) {
       for (let n = KOI_NODES - 4; n < KOI_NODES; n++) {
         const i = this.cellIndex(k.nodes[n * 2], k.nodes[n * 2 + 1]);
-        if (i >= 0) energy[i] = Math.min(1.5, energy[i] + 0.035 + k.speed * 0.0012);
+        if (i >= 0) energy[i] = Math.min(1.5, energy[i] + (0.035 + k.speed * 0.0012) * rate);
       }
     }
     if (world.pointer.active) {
       const i = this.cellIndex(world.pointer.x, world.pointer.y);
-      if (i >= 0) energy[i] = Math.min(1.5, energy[i] + 0.12);
+      if (i >= 0) energy[i] = Math.min(1.5, energy[i] + 0.12 * rate);
     }
   }
 
-  /** Blur and decay so wakes spread like ripples and fade. */
+  /**
+   * Blur and decay so wakes spread like ripples and fade. One pass over 1/60 s hands an
+   * eighth of a cell's energy to each neighbour; a shorter gap hands over proportionally
+   * less and a longer one is split into passes, so a wake spreads as far per second at
+   * any paint rate.
+   */
   diffuse(dt) {
-    const { cols, rows, energy, energyTmp: tmp } = this;
-    const decay = Math.exp(-dt * 1.1);
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        const i = r * cols + c;
-        const l = c > 0 ? energy[i - 1] : energy[i];
-        const rt = c < cols - 1 ? energy[i + 1] : energy[i];
-        const u = r > 0 ? energy[i - cols] : energy[i];
-        const d = r < rows - 1 ? energy[i + cols] : energy[i];
-        tmp[i] = (energy[i] * 4 + l + rt + u + d) * 0.125 * decay;
+    const { cols, rows } = this;
+    const passes = Math.max(1, Math.ceil(dt * 60 - 1e-6));
+    const span = dt / passes;
+    const share = span * 60 * 0.125;
+    const keep = 1 - 4 * share;
+    const decay = Math.exp(-span * 1.1);
+    let energy = this.energy;
+    let tmp = this.energyTmp;
+    for (let p = 0; p < passes; p++) {
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const i = r * cols + c;
+          const l = c > 0 ? energy[i - 1] : energy[i];
+          const rt = c < cols - 1 ? energy[i + 1] : energy[i];
+          const u = r > 0 ? energy[i - cols] : energy[i];
+          const d = r < rows - 1 ? energy[i + cols] : energy[i];
+          tmp[i] = (energy[i] * keep + (l + rt + u + d) * share) * decay;
+        }
       }
+      [energy, tmp] = [tmp, energy];
     }
-    this.energy = tmp;
-    this.energyTmp = energy;
+    this.energy = energy;
+    this.energyTmp = tmp;
   }
 
   drawShadows() {
@@ -1717,8 +1760,8 @@ const __m_engine = (() => {
 
 
 
+// The step for a still frame and the longest single step (World#advance).
 const STEP = 1 / 60;
-const MAX_STEPS = 4;
 // Content over the pond carries this attribute; koi steer around it and fade beneath it.
 const AVOID_TARGETS = '[data-cngtn-avoid]';
 // Koi swim out from under this for as long as it is marked, and nothing fades.
@@ -1726,15 +1769,24 @@ const STEER_TARGETS = '[data-koi-steer]';
 // Re-measure the content boxes this often to follow layout shifts. In time, not
 // frames, so a 240 Hz display does not pay four times what a 60 Hz one does.
 const MEASURE_MS = 250;
-// The world steps at 60 Hz, so painting faster shows nothing new, and every paint
-// makes the glass above re-blur. While the page scrolls the pond yields further.
-const RENDER_MS = 1000 / 60;
-const SCROLL_RENDER_MS = 1000 / 24;
+// The pond paints at the rate World#paintRate asks for (60-120 a second), on the display
+// frame nearest that interval, and steps the world once per paint. It is decoration: it
+// never takes a 240 Hz display's every frame, because every paint makes the glass above
+// re-blur. While the page scrolls it yields further, so scrolling keeps the whole frame.
+const SCROLL_PAINT_MS = 1000 / 24;
 const SCROLL_SETTLE_MS = 200;
+/**
+ * Paint on this display frame, or wait one more? Whichever lands nearer the interval, but
+ * never sooner than 120 paints a second allow, which a 144 or 165 Hz display would otherwise
+ * round up to its every frame.
+ */
+const paintDue = (elapsed, frameGap, interval) => elapsed + frameGap / 2 >= interval && elapsed > 1000 / 120 - 1;
 // Content boxes closer than this merge, so koi aren't squeezed into the slot between them.
 const MERGE_GAP_PX = 72;
+// The composer's card counts as a control: a click on its glass is meant to focus the editor,
+// not to drop food through it.
 const INTERACTIVE =
-  "a, button, input, textarea, select, label, [role='button'], [role='menuitem'], [contenteditable='true'], [data-cngtn-ignore]";
+  "a, button, input, textarea, select, label, [role='button'], [role='menuitem'], [contenteditable='true'], [data-composer-card], [data-cngtn-ignore]";
 
 /**
  * Surfaces that genuinely hide the water. Only the status strip is opaque in
@@ -1969,7 +2021,7 @@ class PondEngine extends PondSurface {
     this.renderer = new KoiRenderer(canvas, { maxCells: options.maxCells ?? 26000 });
     this.raf = 0;
     this.last = 0;
-    this.acc = 0;
+    this.lastFrame = 0;
     this.frames = 0;
     this.lastPointerTime = 0;
     this.isLight = undefined;
@@ -2051,7 +2103,7 @@ class PondEngine extends PondSurface {
       this.drawStill();
       return;
     }
-    this.last = performance.now();
+    this.last = this.lastFrame = performance.now();
     this.raf = requestAnimationFrame(this.frame);
   };
 
@@ -2072,26 +2124,19 @@ class PondEngine extends PondSurface {
     // the next frame usually succeeds, and a persistent fault is visible in the
     // console instead of looking like "the theme disappeared".
     try {
-      const dt = Math.min(0.1, (now - this.last) / 1000);
-      this.last = now;
-      this.acc += dt;
-      let steps = 0;
-      while (this.acc >= STEP && steps < MAX_STEPS) {
-        this.world.step(STEP);
-        this.acc -= STEP;
-        steps++;
-      }
-      if (steps === MAX_STEPS) this.acc = 0;
       if (now - (this.lastMeasure ?? 0) >= MEASURE_MS) {
         this.lastMeasure = now;
         this.measureContent();
       }
-      this.pendingDt = (this.pendingDt ?? 0) + dt;
-      const budget = now < (this.scrollingUntil ?? 0) ? SCROLL_RENDER_MS : RENDER_MS;
-      if (now - (this.lastRender ?? 0) >= budget - 1) {
-        this.lastRender = now;
-        this.renderer.render(this.world, this.pendingDt);
-        this.pendingDt = 0;
+      const gap = now - this.lastFrame;
+      this.lastFrame = now;
+      const interval = now < (this.scrollingUntil ?? 0) ? SCROLL_PAINT_MS : 1000 / this.world.paintRate();
+      const elapsed = now - this.last;
+      if (paintDue(elapsed, gap, interval)) {
+        const dt = Math.min(0.1, Math.max(0, elapsed / 1000));
+        this.last = now;
+        this.world.advance(dt);
+        this.renderer.render(this.world, dt);
         this.report();
       }
       this.frameFaults = 0;
@@ -2184,21 +2229,19 @@ const { PondEngine } = __m_engine;
  */
 function workerMain(lib) {
   const { World, KoiRenderer } = lib;
+  // Same pacing as the main-thread engine: see SCROLL_PAINT_MS and paintDue there.
   const STEP = 1 / 60;
-  const MAX_STEPS = 4;
-  const RENDER_MS = 1000 / 60;
-  const SCROLL_RENDER_MS = 1000 / 24;
+  const SCROLL_PAINT_MS = 1000 / 24;
+  const paintDue = (elapsed, frameGap, interval) => elapsed + frameGap / 2 >= interval && elapsed > 1000 / 120 - 1;
   const tick = typeof self.requestAnimationFrame === 'function'
     ? (fn) => self.requestAnimationFrame(fn)
-    : (fn) => setTimeout(() => fn(performance.now()), 16);
+    : (fn) => setTimeout(() => fn(performance.now()), 8);
   let world = null;
   let renderer = null;
   let mode = 'off';
   let scheduled = false;
   let last = 0;
-  let acc = 0;
-  let pending = 0;
-  let lastRender = 0;
+  let lastFrame = 0;
   let scrollingUntil = 0;
   let lastPointer = 0;
   let reported = '';
@@ -2222,18 +2265,15 @@ function workerMain(lib) {
     scheduled = false;
     if (mode !== 'run' || !world) return;
     try {
-      const dt = Math.min(0.1, (now - last) / 1000);
-      last = now;
-      acc += dt;
-      let steps = 0;
-      while (acc >= STEP && steps < MAX_STEPS) { world.step(STEP); acc -= STEP; steps++; }
-      if (steps === MAX_STEPS) acc = 0;
-      pending += dt;
-      const budget = now < scrollingUntil ? SCROLL_RENDER_MS : RENDER_MS;
-      if (now - lastRender >= budget - 1) {
-        lastRender = now;
-        renderer.render(world, pending);
-        pending = 0;
+      const gap = now - lastFrame;
+      lastFrame = now;
+      const interval = now < scrollingUntil ? SCROLL_PAINT_MS : 1000 / world.paintRate();
+      const elapsed = now - last;
+      if (paintDue(elapsed, gap, interval)) {
+        const dt = Math.min(0.1, Math.max(0, elapsed / 1000));
+        last = now;
+        world.advance(dt);
+        renderer.render(world, dt);
       }
       faults = 0;
     } catch (error) {
@@ -2247,7 +2287,7 @@ function workerMain(lib) {
   const start = () => {
     if (scheduled) return;
     scheduled = true;
-    last = performance.now();
+    last = lastFrame = performance.now();
     tick(frame);
   };
   setInterval(() => report(false), 500);

@@ -30,11 +30,17 @@ shell itself captures files. Copies are stored once each by SHA-1 under
   after the agent last wrote it, by your own edit or a shell command, so overwriting it
   is a choice. It refuses while a turn is running.
 - **Undo** puts back what the revert overwrote; it too names files that changed since.
+- Reverts and undos track success for each file. A partial failure lists the unfinished
+  files and reasons; retry touches only the unfinished files, and a failed undo keeps
+  its remaining copies and undo entry. A turn is marked reverted only once all its
+  files have been restored.
 - The agent is not told about a revert. Tell it when you continue.
 
 Limits: only file-tool edits are recorded (`write`, `edit`, `apply_patch`,
 `str_replace_editor`); changes made with shell commands are not shown or reverted.
-Files over 2 MB are listed without a copy and cannot be reverted. Subagent sessions are
+Files over 2 MB are listed without a copy and cannot be reverted. A file whose current
+contents exceed 2 MB is also skipped, even with overwrite confirmation, so restoring
+it never overwrites content that cannot be fully backed up. Subagent sessions are
 not recorded. The newest 60 turns per session are kept; histories untouched for 60 days
 and copies nothing refers to are cleared a minute after the Host starts.
 

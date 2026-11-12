@@ -1,6 +1,6 @@
 {
   "name": "@tal-shin/dsh-turn-alert",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "type": "module",
   "description": "Desktop notification when a turn finishes while the window is out of focus.",
   "exports": {

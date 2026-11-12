@@ -1,7 +1,7 @@
 /**
  * Host half of glass-theme.
  *
- * Declares the appearance settings so the Plugins page can save them; the Client module
+ * Owns the first-paint startup veil and declares appearance settings; the Client module
  * owns the look and reads the saved values through its config scope. A linked copy lives
  * outside the profile, so the schema library falls back to whichever profile can resolve it.
  */
@@ -9,6 +9,7 @@ import { createRequire } from 'node:module';
 import { existsSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { installBootVeil } from './boot.js';
 
 function loadSchema() {
   const tried = [createRequire(import.meta.url)];
@@ -32,7 +33,7 @@ function loadSchema() {
 const z = loadSchema();
 
 export default class AppleTheme {
-  static inject = ['settings'];
+  static inject = ['settings', 'webServer'];
 
   static Config = z.object({
     color: z.boolean().default(true).volatile(),
@@ -51,6 +52,7 @@ export default class AppleTheme {
   constructor(ctx, config) {
     this.ctx = ctx;
     this.config = config;
+    installBootVeil(ctx);
     // The settings page owns every write; the Host never rewrites the document.
     ctx.inject(['settings'], (child) => {
       child.effect(() => child.settings.configure({ auto: false }, ctx.fiber));
