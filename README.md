@@ -21,7 +21,17 @@ A set of DeepSeek Harness desktop plugins: neutral greys, translucent floating p
 
 ## 安装
 
-在 DSH 里打开 **插件 → 添加插件 → 安装第三方插件**，每次填一个：
+在 DSH 里打开 **插件 → 添加插件 → 安装第三方插件**，每次填一个包名（推荐，以后可以在插件页直接更新）：
+
+```
+@tal-shin/dsh-glass-theme
+@tal-shin/dsh-workbench
+@tal-shin/dsh-koi-pond
+@tal-shin/dsh-turn-alert
+@tal-shin/dsh-turn-resume
+```
+
+也可以填 GitHub 地址，装到的是 main 分支的最新代码：
 
 ```
 github:Tal-Shin/dsh-glass#path:/glass-theme
@@ -31,11 +41,11 @@ github:Tal-Shin/dsh-glass#path:/turn-alert
 github:Tal-Shin/dsh-glass#path:/turn-resume
 ```
 
-也可以把仓库克隆到本地，填各插件文件夹的绝对路径安装。
+或者把仓库克隆到本地，填各插件文件夹的绝对路径安装。
 
 **建议同时调整**：设置 → 通用设置里把正文字号调到 15、代码字号调到 13。
 
-**更新**：用 `github:` 地址装的插件不能在插件页直接更新。要换新版，先在插件页删除，再用上面的地址重新安装。
+**更新**：用包名装的插件可以在插件页直接更新。DSH 自带的 pnpm 不会安装发布不满一天的版本，新版本发出后大约一天才能装到或更新到。用 `github:` 地址装的不能直接更新，要换新版，先在插件页删除，再重新安装；之后改用包名安装，就能直接更新了。
 
 **从带有独立启动页的版本升级**时，请先在插件页删除 `boot-veil`，再安装新版 `glass-theme`。从 `v1.2.0` 起，鲸鱼启动画面由主题提供。
 
