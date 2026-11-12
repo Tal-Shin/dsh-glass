@@ -11,14 +11,13 @@ A set of DeepSeek Harness desktop plugins: neutral greys, translucent floating p
 
 | 插件 | 作用 | 依赖 |
 |---|---|---|
-| [`glass-theme`](glass-theme) | 全部外观：配色、玻璃、圆角字体、交互动效，四组各自开关。玻璃有“清透 / 标准 / 沉稳”三个预设；开启“折射透镜”后，输入框、顶栏控件和菜单是液态玻璃，聚焦时边缘亮起一道细光，后面有文字经过时玻璃变厚。菜单和弹窗从按钮里长出、关闭时收回，途中可以打断。启动、发送第一条消息、回到首页是连贯的过渡。设置页会自检 DSH 的界面结构 | — |
+| [`glass-theme`](glass-theme) | 配色、玻璃、圆角字体、交互动效，四组各自开关。玻璃有“清透 / 标准 / 沉稳”三个预设。开启“折射透镜”后，输入框、顶栏控件和菜单是液态玻璃，聚焦时边缘亮起一道细光，后面有文字经过时玻璃变厚。菜单和弹窗从按钮里长出、关闭时收回，途中可以打断。冷启动时鲸鱼飞进首页标题，发送第一条消息和回到首页也有连贯的过渡。设置页会自检 DSH 的界面结构 | — |
 | [`workbench`](workbench) | 右侧栏开始页换成工作台：状态、上下文、改动、任务、子智能体、工具。改动按轮保存、重启后还在，可以就地看差异，也可以回退到任意一轮之前并撤销；记住右栏宽度；把输入框下方的状态行和任务条收进来 | — |
 | [`koi-pond`](koi-pond) | 背景 ASCII 锦鲤，可单独开关；首页鱼清晰，文字下自动变淡。发送第一条消息时水波从输入框四周荡开，打字时鱼从输入框下游开 | 建议配 `glass-theme` |
-| [`boot-veil`](boot-veil) | 启动画面：接住 DSH 自带的加载卡，加载圈一直转、鲸鱼换下文字标志，按明暗模式显示。和 `glass-theme` 一起装时，首页就绪后鲸鱼飞进标题，开机最后一帧就是首页第一帧 | — |
 | [`turn-alert`](turn-alert) | 窗口不在前台时，回合结束弹桌面通知 | — |
 | [`turn-resume`](turn-resume) | 回合被中断后，在输入框下出现“继续”胶囊 | — |
 
-整套效果推荐全部安装；`turn-alert`、`turn-resume`、`boot-veil` 可以单独用。
+整套效果推荐全部安装。`turn-alert` 和 `turn-resume` 都可以单独安装。
 
 ## 安装
 
@@ -28,7 +27,6 @@ A set of DeepSeek Harness desktop plugins: neutral greys, translucent floating p
 github:Tal-Shin/dsh-glass#path:/glass-theme
 github:Tal-Shin/dsh-glass#path:/workbench
 github:Tal-Shin/dsh-glass#path:/koi-pond
-github:Tal-Shin/dsh-glass#path:/boot-veil
 github:Tal-Shin/dsh-glass#path:/turn-alert
 github:Tal-Shin/dsh-glass#path:/turn-resume
 ```
@@ -38,6 +36,8 @@ github:Tal-Shin/dsh-glass#path:/turn-resume
 **建议同时调整**：设置 → 通用设置里把正文字号调到 15、代码字号调到 13。
 
 **更新**：用 `github:` 地址装的插件不能在插件页直接更新。要换新版，先在插件页删除，再用上面的地址重新安装。
+
+**从带有独立启动页的版本升级**时，请先在插件页删除 `boot-veil`，再安装新版 `glass-theme`。从 `v1.2.0` 起，鲸鱼启动画面由主题提供。
 
 **从 0.1.x 升级**：`liquid-glass`、`cupertino`、`pond-polish` 已并入 `glass-theme`。先在插件页删除这三个插件，其余插件按上面的方法删除后重新安装。之前在 `liquid-glass` 里保存的设置不会自动带过来，需要重新调一次。忘了删的话，`glass-theme` 设置页的“兼容性”会提示。
 
